@@ -1,0 +1,114 @@
+name: CI - Debug APK
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# Only one build at a time per ref; cancel superseded runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # --- Gradle wrapper -------------------------------------------------
+      # gradle-wrapper.jar is not committed to this repo (see comment in
+      # gradle/wrapper/gradle-wrapper.properties), so it's generated fresh
+      # on the runner using a system Gradle install that matches the
+      # distributionUrl pinned in gradle-wrapper.properties.
+      - name: Install Gradle (to bootstrap the wrapper)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      - name: Generate gradle-wrapper.jar
+        run: gradle wrapper --gradle-version 8.9 --distribution-type bin
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # --- Debug signing key ------------------------------------------------
+      # A debug keystore is required to produce a debug-signed APK. We want
+      # the SAME debug key reused across CI runs (not a fresh throwaway key
+      # each time), so installs can upgrade cleanly instead of failing with
+      # "INSTALL_FAILED_UPDATE_INCOMPATIBLE". We do this by caching the
+      # keystore across runs, keyed so it's created once and then reused.
+      - name: Restore cached debug keystore
+        id: keystore-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
+
+      - name: Generate debug keystore (first run only)
+        if: steps.keystore-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -v \
+            -keystore ~/.android/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      # Persist the keystore as a build artifact too, so it can be
+      # downloaded and reused locally (e.g. dropped into
+      # ~/.android/debug.keystore on a dev machine) instead of only living
+      # inside the GitHub Actions cache.
+      - name: Upload debug keystore artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-keystore
+          path: ~/.android/debug.keystore
+          retention-days: 90
+
+      # --- Build ------------------------------------------------------------
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+        env:
+          # Point Gradle/AGP at the debug keystore explicitly rather than
+          # relying on the default ~/.android path resolution.
+          ANDROID_DEBUG_KEYSTORE: /root/.android/debug.keystore
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "Found APK: $APK_PATH"
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: knot-browser-debug
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 30
