@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="wormhole_library.db" />
+        <exclude domain="database" path="wormhole_library.db-wal" />
+        <exclude domain="database" path="wormhole_library.db-shm" />
+        <exclude domain="database" path="wormhole_downloads.db" />
+        <exclude domain="database" path="wormhole_downloads.db-wal" />
+        <exclude domain="database" path="wormhole_downloads.db-shm" />
+        <exclude domain="database" path="wormhole_chat_history.db" />
+        <exclude domain="database" path="wormhole_chat_history.db-wal" />
+        <exclude domain="database" path="wormhole_chat_history.db-shm" />
+
+        <exclude domain="sharedpref" path="wormhole_secure_prefs.xml" />
+
+        <exclude domain="file" path="app_webview" />
+
+        <exclude domain="file" path="downloads" />
+
+        <exclude domain="file" path="crash_logs" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="wormhole_library.db" />
+        <exclude domain="database" path="wormhole_library.db-wal" />
+        <exclude domain="database" path="wormhole_library.db-shm" />
+        <exclude domain="database" path="wormhole_downloads.db" />
+        <exclude domain="database" path="wormhole_downloads.db-wal" />
+        <exclude domain="database" path="wormhole_downloads.db-shm" />
+        <exclude domain="database" path="wormhole_chat_history.db" />
+        <exclude domain="database" path="wormhole_chat_history.db-wal" />
+        <exclude domain="database" path="wormhole_chat_history.db-shm" />
+        <exclude domain="sharedpref" path="wormhole_secure_prefs.xml" />
+        <exclude domain="file" path="app_webview" />
+        <exclude domain="file" path="downloads" />
+        <exclude domain="file" path="crash_logs" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yahoo mark: purple circle with the brand's exclamation motif. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <path
+        android:fillColor="#6001D2"
+        android:pathData="M24,4C12.95,4 4,12.95 4,24s8.95,20 20,20 20,-8.95 20,-20S35.05,4 24,4z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M21.5,14l3.6,8 3.6,-8h4.6l-6.1,12.5V34h-4.2v-7.5L17,14z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,32.2a2.3,2.3 0,1 0,0 -4.6,2.3 2.3,0 0,0 0,4.6z"/>
+</vector>

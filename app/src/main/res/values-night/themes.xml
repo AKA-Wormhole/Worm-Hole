@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.WormHole" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/wormhole_status_bar</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/wormhole_launch_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorAccent">@color/wormhole_native_accent</item>
+        <item name="android:colorControlActivated">@color/wormhole_native_accent</item>
+        <item name="android:textColorHighlight">#335B8DEF</item>
+    </style>
+</resources>

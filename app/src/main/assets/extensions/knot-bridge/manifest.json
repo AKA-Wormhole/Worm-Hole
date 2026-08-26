@@ -1,0 +1,29 @@
+{
+  "manifest_version": 2,
+  "name": "KNOT Page Bridge",
+  "version": "1.0.0",
+  "description": "Internal bridge that lets the WORMHOLE agent read and interact with the active page. Not visible in the extension store; installed automatically by the browser.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "knot-bridge@wormhole.browser",
+      "strict_min_version": "102.0"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "nativeMessaging",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "all_frames": false,
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bing mark: teal ribbon/checkmark shape approximating the Bing "b" icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <path
+        android:fillColor="#008373"
+        android:pathData="M12,4l8,2.8v22.5l11,-6.3 6,3.5 -17,10 -8,-4.3z"/>
+    <path
+        android:fillColor="#00A5B5"
+        android:pathData="M20,29.3l11,-6.3 6,3.5 -17,10z"/>
+</vector>
