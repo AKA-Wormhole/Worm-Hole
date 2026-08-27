@@ -109,6 +109,7 @@ fun AiSheet(
 
     var input by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
+    var pendingTool by remember { mutableStateOf<String?>(null) }
     var requestJob by remember { mutableStateOf<Job?>(null) }
     val listState = rememberLazyListState()
 
@@ -209,6 +210,7 @@ fun AiSheet(
             // dismisses everything instead of leaving a dead dialog on screen.
             pendingConfirmation?.second?.cancel()
             pendingConfirmation = null
+            pendingTool = null
             return
         }
         if (text.isEmpty()) return
@@ -223,8 +225,12 @@ fun AiSheet(
                     agent.run(
                         apiKey,
                         text,
+                        onActionStarted = { action ->
+                            pendingTool = action.tool
+                        },
                         onObservation = { observation ->
                             try {
+                                pendingTool = null
                                 actions += IdentifiedObservation(
                                     id = nextObservationId.getAndIncrement(),
                                     observation = observation,
@@ -418,7 +424,7 @@ fun AiSheet(
                                         color = MaterialTheme.colorScheme.primary,
                                     )
                                     Text(
-                                        "Working…",
+                                        AgentActionLabels.progress(pendingTool),
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(start = 8.dp),
@@ -602,12 +608,16 @@ private fun AgentActionChip(observation: AgentObservation) {
             Icon(Icons.Default.CheckCircle, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.padding(start = 8.dp)) {
                 Text(
-                    observation.action.tool,
+                    AgentActionLabels.done(observation.action.tool, observation.result.success),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                val summary = observation.result.output.ifBlank { observation.result.error.orEmpty() }
+                val summary = if (observation.result.success) {
+                    AgentActionLabels.successHint(observation.action.tool, observation.result.output)
+                } else {
+                    observation.result.error.orEmpty()
+                }
                 if (summary.isNotBlank()) {
                     Text(
                         summary.take(140),
@@ -619,6 +629,49 @@ private fun AgentActionChip(observation: AgentObservation) {
                 }
             }
         }
+    }
+}
+
+private object AgentActionLabels {
+    fun progress(tool: String?): String = when (tool) {
+        "read_page" -> "Reading page"
+        "scroll" -> "Scrolling"
+        "tap" -> "Tapping"
+        "type_text" -> "Typing"
+        "find_text" -> "Searching page"
+        "open_url" -> "Opening page"
+        "reload" -> "Reloading"
+        "back" -> "Going back"
+        "forward" -> "Going forward"
+        "edit_page" -> "Editing page"
+        "select_text" -> "Selecting text"
+        "get_current_page" -> "Checking page"
+        "execute_js" -> "Running on page"
+        else -> "Working"
+    }
+
+    fun done(tool: String, success: Boolean): String = when (tool) {
+        "read_page" -> if (success) "Read page" else "Couldn't read page"
+        "scroll" -> if (success) "Scrolled" else "Couldn't scroll"
+        "tap" -> if (success) "Tapped" else "Couldn't tap"
+        "type_text" -> if (success) "Typed" else "Couldn't type"
+        "find_text" -> if (success) "Searched page" else "Couldn't search page"
+        "open_url" -> if (success) "Opened page" else "Couldn't open page"
+        "reload" -> if (success) "Reloaded" else "Couldn't reload"
+        "back" -> if (success) "Went back" else "Couldn't go back"
+        "forward" -> if (success) "Went forward" else "Couldn't go forward"
+        "edit_page" -> if (success) "Edited page" else "Couldn't edit page"
+        "select_text" -> if (success) "Selected text" else "Couldn't select text"
+        "get_current_page" -> if (success) "Checked page" else "Couldn't check page"
+        "execute_js" -> if (success) "Ran on page" else "Couldn't run on page"
+        else -> tool.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+
+    fun successHint(tool: String, output: String): String {
+        if (tool == "read_page") return output.trim().take(80)
+        if (tool == "scroll") return ""
+        if (output.length <= 80 && !output.startsWith("ERR")) return output
+        return ""
     }
 }
 

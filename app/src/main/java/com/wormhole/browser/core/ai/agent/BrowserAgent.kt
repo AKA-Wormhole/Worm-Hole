@@ -115,14 +115,29 @@ class BrowserAgent(
         }
     }
 
-    /** True if [evalJs]'s result means "this GeckoView build can't run page JS at all." */
-    private fun isJsUnavailable(result: String): Boolean = result == GeckoJs.UNAVAILABLE_SENTINEL
+    private fun isBridgeFailure(result: String): Boolean {
+        if (result.isBlank()) return true
+        if (result == GeckoJs.UNAVAILABLE_SENTINEL) return true
+        if (result.startsWith("ERR:")) return true
+        if (result == "NO_PAGE_BRIDGE" || result == "UNKNOWN_COMMAND") return true
+        return false
+    }
 
-    private val jsUnavailableToolResult = ToolResult(
+    private fun pageCommandFailed(action: String): ToolResult = ToolResult(
         false,
         "",
-        "Page scripting isn't available on this build, so this action could not run.",
+        "Couldn't $action. Wait for the page to finish loading, then try again.",
     )
+
+    private suspend fun bridgeRetry(command: String, args: Map<String, String> = emptyMap()): String {
+        var last = GeckoJs.UNAVAILABLE_SENTINEL
+        repeat(4) { attempt ->
+            last = bridge(command, args)
+            if (!isBridgeFailure(last)) return last
+            kotlinx.coroutines.delay(280L * (attempt + 1))
+        }
+        return last
+    }
 
     fun tools(): BrowserToolRegistry = BrowserToolRegistry().also { registry ->
         // --- Page awareness ---
@@ -135,15 +150,18 @@ class BrowserAgent(
             val session = activeSession()
             if (session == null) ToolResult(false, "", "No active page")
             else {
-                val text = bridge("read_page")
-                if (isJsUnavailable(text)) jsUnavailableToolResult
+                var text = bridgeRetry("read_page")
+                if (isBridgeFailure(text)) {
+                    text = com.wormhole.browser.core.gecko.PageTranslator.readReadableText(session)
+                }
+                if (isBridgeFailure(text) || text.isBlank()) pageCommandFailed("read the page")
                 else ToolResult(true, text.take(12000))
             }
         })
         registry.register(SimpleTool("find_text", "Check whether text appears on the current page") SimpleTool@{ input ->
             val query = input.arguments["query"].orEmpty()
-            val out = bridge("find_text", mapOf("query" to query))
-            if (isJsUnavailable(out)) return@SimpleTool jsUnavailableToolResult
+            val out = bridgeRetry("find_text", mapOf("query" to query))
+            if (isBridgeFailure(out)) return@SimpleTool pageCommandFailed("search the page")
             ToolResult(true, out)
         })
 
@@ -331,9 +349,9 @@ class BrowserAgent(
             val selector = input.arguments["selector"].orEmpty()
             val text = input.arguments["text"].orEmpty()
             if (selector.isBlank() && text.isBlank()) return@SimpleTool ToolResult(false, "", "Need selector or text")
-            val out = bridge("tap", mapOf("selector" to selector, "text" to text))
+            val out = bridgeRetry("tap", mapOf("selector" to selector, "text" to text))
             when {
-                isJsUnavailable(out) -> jsUnavailableToolResult
+                isBridgeFailure(out) -> pageCommandFailed("tap that")
                 out.startsWith("CLICKED") -> ToolResult(true, out)
                 else -> ToolResult(false, "", out.ifBlank { "not found" })
             }
@@ -342,9 +360,9 @@ class BrowserAgent(
             val value = input.arguments["text"].orEmpty()
             val selector = input.arguments["selector"].orEmpty()
             if (value.isBlank()) return@SimpleTool ToolResult(false, "", "Missing text")
-            val out = bridge("type_text", mapOf("text" to value, "selector" to selector))
+            val out = bridgeRetry("type_text", mapOf("text" to value, "selector" to selector))
             when {
-                isJsUnavailable(out) -> jsUnavailableToolResult
+                isBridgeFailure(out) -> pageCommandFailed("type")
                 out == "TYPED" -> ToolResult(true, "Typed")
                 else -> ToolResult(false, "", out.ifBlank { "failed" })
             }
@@ -352,17 +370,17 @@ class BrowserAgent(
         registry.register(SimpleTool("scroll", "Scroll page. Args: direction=up|down|top|bottom, amount?") { input ->
             val dir = input.arguments["direction"].orEmpty().lowercase().ifBlank { "down" }
             val amount = input.arguments["amount"]?.toIntOrNull() ?: 600
-            val out = bridge("scroll", mapOf("direction" to dir, "amount" to amount.toString()))
-            if (isJsUnavailable(out)) jsUnavailableToolResult else ToolResult(true, out)
+            val out = bridgeRetry("scroll", mapOf("direction" to dir, "amount" to amount.toString()))
+            if (isBridgeFailure(out)) pageCommandFailed("scroll") else ToolResult(true, "Scrolled")
         })
         registry.register(SimpleTool("edit_page", "Replace text on the page. Args: find, replace, selector?") SimpleTool@{ input ->
             val find = input.arguments["find"].orEmpty()
             val replace = input.arguments["replace"].orEmpty()
             val selector = input.arguments["selector"].orEmpty()
             if (find.isBlank()) return@SimpleTool ToolResult(false, "", "Missing find")
-            val out = bridge("edit_page", mapOf("find" to find, "replace" to replace, "selector" to selector))
+            val out = bridgeRetry("edit_page", mapOf("find" to find, "replace" to replace, "selector" to selector))
             when {
-                isJsUnavailable(out) -> jsUnavailableToolResult
+                isBridgeFailure(out) -> pageCommandFailed("edit the page")
                 out.startsWith("EDITED") -> ToolResult(true, out)
                 else -> ToolResult(false, "", out)
             }
@@ -370,9 +388,9 @@ class BrowserAgent(
         registry.register(SimpleTool("select_text", "Select text containing a string") SimpleTool@{ input ->
             val text = input.arguments["text"].orEmpty()
             if (text.isBlank()) return@SimpleTool ToolResult(false, "", "Missing text")
-            val out = bridge("select_text", mapOf("text" to text))
+            val out = bridgeRetry("select_text", mapOf("text" to text))
             when {
-                isJsUnavailable(out) -> jsUnavailableToolResult
+                isBridgeFailure(out) -> pageCommandFailed("select text")
                 out == "SELECTED" -> ToolResult(true, "Selected")
                 else -> ToolResult(false, "", "Not found")
             }
@@ -380,8 +398,8 @@ class BrowserAgent(
         registry.register(SimpleTool("correct_text", "Return selected or provided text for proofreading") SimpleTool@{ input ->
             var source = input.arguments["text"].orEmpty()
             if (source.isBlank()) {
-                source = bridge("get_selection")
-                if (isJsUnavailable(source)) return@SimpleTool jsUnavailableToolResult
+                source = bridgeRetry("get_selection")
+                if (isBridgeFailure(source)) return@SimpleTool pageCommandFailed("read the selection")
             }
             if (source.isBlank()) ToolResult(false, "", "No text")
             else ToolResult(true, "TEXT_TO_CORRECT:\n$source")
@@ -400,7 +418,7 @@ class BrowserAgent(
                 return@SimpleTool ToolResult(false, "", "Code blocked by safety policy")
             }
             val out = evalJs("(function(){ try { return String(($code)); } catch(e){ return 'ERR:'+e.message; } })()")
-            if (isJsUnavailable(out)) jsUnavailableToolResult else ToolResult(true, out.take(4000))
+            if (isBridgeFailure(out)) pageCommandFailed("run that") else ToolResult(true, out.take(4000))
         })
 
     }
@@ -417,11 +435,12 @@ class BrowserAgent(
         apiKey: String,
         userRequest: String,
         onObservation: (AgentObservation) -> Unit = {},
+        onActionStarted: (AgentAction) -> Unit = {},
         onConfirmationNeeded: suspend (AgentAction) -> Boolean = { false },
     ): AgentRunResult {
         if (apiKey.isBlank()) return AgentRunResult("Connect a Gemini API key in Settings first.")
         return try {
-            runInternal(apiKey, userRequest, onObservation, onConfirmationNeeded)
+            runInternal(apiKey, userRequest, onObservation, onActionStarted, onConfirmationNeeded)
         } catch (e: Throwable) {
             AgentRunResult("Agent stopped: ${e.message ?: e.javaClass.simpleName}")
         }
@@ -431,6 +450,7 @@ class BrowserAgent(
         apiKey: String,
         userRequest: String,
         onObservation: (AgentObservation) -> Unit,
+        onActionStarted: (AgentAction) -> Unit,
         onConfirmationNeeded: suspend (AgentAction) -> Boolean,
     ): AgentRunResult {
         val registry = tools()
@@ -511,6 +531,10 @@ class BrowserAgent(
                         lastOutput = recordSkipped(observations, onObservation, action, "Skipped: not confirmed by user")
                         continue
                     }
+                }
+                try {
+                    onActionStarted(agentAction)
+                } catch (_: Throwable) {
                 }
                 val toolResult = try {
                     tool.execute(ToolInput(action.arguments))

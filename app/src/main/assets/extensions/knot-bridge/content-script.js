@@ -9,6 +9,8 @@
 
 (function () {
   "use strict";
+  if (window.__whPageBridge) return;
+  window.__whPageBridge = true;
 
   function readPage() {
     try {

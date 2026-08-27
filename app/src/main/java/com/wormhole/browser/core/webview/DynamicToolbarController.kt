@@ -10,9 +10,9 @@ import kotlin.math.abs
  */
 class DynamicToolbarController(
     private val snapThresholdFraction: Float = 0.38f,
-    private val minScrollDelta: Int = 1,
-    private val noiseDelta: Int = 10,
-    private val commitTravel: Float = 24f,
+    private val minScrollDelta: Int = 4,
+    private val noiseDelta: Int = 16,
+    private val commitTravel: Float = 28f,
 ) {
     var translationY: Float = 0f
         private set

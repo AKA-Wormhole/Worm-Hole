@@ -16,8 +16,8 @@ class GeckoScrollTracker(
     private val session: GeckoSession,
     private val onScroll: (deltaY: Int, scrollY: Int, isScrollable: Boolean) -> Unit,
     private val onScrollSettled: () -> Unit = {},
-    private val intervalMs: Long = 32L,
-    private val settleMs: Long = 160L,
+    private val intervalMs: Long = 48L,
+    private val settleMs: Long = 220L,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var lastY = 0
@@ -46,6 +46,7 @@ class GeckoScrollTracker(
     private val tick = object : Runnable {
         override fun run() {
             if (!running) return
+            if (compositorBound) return
             GeckoJs.evaluateAsync(session, jsProbe)?.accept { raw ->
                 if (!running) return@accept
                 try {
@@ -95,7 +96,10 @@ class GeckoScrollTracker(
                         session: GeckoSession,
                         update: GeckoSession.ScrollPositionUpdate,
                     ) {
-                        compositorBound = true
+                        if (!compositorBound) {
+                            compositorBound = true
+                            main.removeCallbacks(tick)
+                        }
                         emit(update.scrollY.toInt(), fromCompositor = true)
                     }
                 },
@@ -120,7 +124,7 @@ class GeckoScrollTracker(
         val delta = y - lastY
         lastY = y
         if (fromCompositor) lastCompositorAt = SystemClock.uptimeMillis()
-        if (abs(delta) < 1) return
+        if (abs(delta) < 4) return
         onScroll(delta, y.coerceAtLeast(0), true)
         scheduleSettle()
     }
