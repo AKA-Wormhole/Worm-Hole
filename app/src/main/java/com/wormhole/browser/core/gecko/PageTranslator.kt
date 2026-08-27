@@ -53,11 +53,16 @@ object PageTranslator {
             return Result.Error("Open a finished https page to translate.")
         }
         val marked = translateMarkerUrl(url, language.code)
+        val lang = language.code.lowercase().substringBefore('-').ifBlank { "en" }
+        runCatching {
+            session.loadUri("javascript:void(location.hash='wh-tl=$lang." + System.currentTimeMillis() + "')")
+        }
         if (onOpenViewer != null) {
             onOpenViewer(marked)
         } else {
             session.loadUri(marked)
         }
+        kotlinx.coroutines.delay(2_400)
         return Result.Applied(language.displayName, Mode.IN_PAGE)
     }
 
@@ -73,7 +78,7 @@ object PageTranslator {
     fun translateMarkerUrl(pageUrl: String, languageCode: String): String {
         val base = pageUrl.substringBefore("#")
         val lang = languageCode.lowercase().substringBefore('-').ifBlank { "en" }
-        return "$base#wh-tl=$lang"
+        return "$base#wh-tl=$lang.${System.currentTimeMillis()}"
     }
 
     fun restoreMarkerUrl(pageUrl: String = ""): String {

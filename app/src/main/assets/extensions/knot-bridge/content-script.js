@@ -352,7 +352,7 @@
   }
 
   async function translatePageInPlace(lang) {
-    const raw = collectTextNodes(80);
+    const raw = collectTextNodes(160);
     let nodes = [];
     try {
       nodes = JSON.parse(raw);
@@ -372,7 +372,7 @@
     const limited = unique
       .map(function (text, i) { return { text: text, i: i }; })
       .sort(function (a, b) { return b.text.length - a.text.length; })
-      .slice(0, 40);
+      .slice(0, 80);
     const payload = limited.map(function (item) { return item.text; });
     let translated = null;
     try {
@@ -399,14 +399,19 @@
     } catch (_e) {}
   }
 
+  var lastTranslateKey = "";
   function handleTranslateHash() {
     const hash = String(location.hash || "");
-    const match = hash.match(/^#wh-tl=([a-zA-Z-]+)/);
+    const match = hash.match(/^#wh-tl=([a-zA-Z-]+)(?:\.(\d+))?/);
     if (match) {
+      const key = match[1].toLowerCase() + "." + (match[2] || "0");
+      if (key === lastTranslateKey) return;
+      lastTranslateKey = key;
       translatePageInPlace(match[1].toLowerCase());
       return;
     }
-    if (hash === "#wh-tl-restore") {
+    if (hash.indexOf("wh-tl-restore") >= 0) {
+      lastTranslateKey = "";
       restoreOriginals();
       try {
         history.replaceState(null, "", location.pathname + location.search);
@@ -415,9 +420,11 @@
   }
 
   window.addEventListener("hashchange", handleTranslateHash);
+  window.addEventListener("popstate", handleTranslateHash);
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", handleTranslateHash);
   } else {
     handleTranslateHash();
   }
+  setInterval(handleTranslateHash, 500);
 })();

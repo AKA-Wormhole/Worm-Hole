@@ -148,13 +148,15 @@ connectNative();
 
 const LINGVA_HOSTS = [
   "https://lingva.ml",
+  "https://lingva.lunar.icu",
   "https://lingva.garudalinux.org",
   "https://translate.plausibility.cloud",
+  "https://translate.igna.wtf",
 ];
 const LIBRE_HOSTS = [
   "https://translate.fedilab.app",
-  "https://translate.cutie.dating",
-  "https://libretranslate.com",
+  "https://libretranslate.de",
+  "https://translate.terraprint.co",
 ];
 
 async function translateOneLingva(text, target) {
@@ -186,22 +188,70 @@ async function translateOneLibre(text, target) {
   return null;
 }
 
-async function translateBatch(texts, target) {
-  const out = [];
-  const lang = String(target || "en").toLowerCase().split("-")[0] || "en";
-  for (let i = 0; i < texts.length; i++) {
-    const original = String(texts[i] || "");
-    const translated =
-      (await translateOneLingva(original, lang)) ||
-      (await translateOneLibre(original, lang)) ||
-      original;
-    out.push(translated);
+async function translateOneGtx(text, target) {
+  try {
+    const url =
+      "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" +
+      encodeURIComponent(target) +
+      "&dt=t&q=" +
+      encodeURIComponent(text);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json || !json[0]) return null;
+    let out = "";
+    for (let i = 0; i < json[0].length; i++) {
+      if (json[0][i] && json[0][i][0]) out += json[0][i][0];
+    }
+    return out || null;
+  } catch (_e) {
+    return null;
   }
+}
+
+async function translateOneMyMemory(text, target) {
+  try {
+    const url =
+      "https://api.mymemory.translated.net/get?q=" +
+      encodeURIComponent(text) +
+      "&langpair=auto|" +
+      encodeURIComponent(target);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const out = json && json.responseData && json.responseData.translatedText;
+    return out ? String(out) : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function translateOne(text, target) {
+  return (
+    (await translateOneLingva(text, target)) ||
+    (await translateOneLibre(text, target)) ||
+    (await translateOneGtx(text, target)) ||
+    (await translateOneMyMemory(text, target))
+  );
+}
+
+async function translateBatch(texts, target) {
+  const lang = String(target || "en").toLowerCase().split("-")[0] || "en";
+  const out = new Array(texts.length);
+  const queue = texts.map(function (_t, i) { return i; });
+  async function worker() {
+    while (queue.length) {
+      const i = queue.shift();
+      const original = String(texts[i] || "");
+      out[i] = (await translateOne(original, lang)) || original;
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
   return out;
 }
 
 browser.runtime.onMessage.addListener(function (message) {
   if (!message || message.cmd !== "translate_batch") return;
-  const texts = Array.isArray(message.texts) ? message.texts.slice(0, 40) : [];
+  const texts = Array.isArray(message.texts) ? message.texts.slice(0, 80) : [];
   return translateBatch(texts, message.target);
 });
