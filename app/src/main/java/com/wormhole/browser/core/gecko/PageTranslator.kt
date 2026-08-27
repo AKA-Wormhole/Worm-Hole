@@ -2,19 +2,15 @@ package com.wormhole.browser.core.gecko
 
 import com.wormhole.browser.core.ai.TranslateLanguage
 import com.wormhole.browser.core.ai.TranslateLanguages
-import com.wormhole.browser.core.translate.GoogleTranslateClient
+import com.wormhole.browser.core.translate.ArgosTranslateClient
+import com.wormhole.browser.core.translate.LingvaTranslateClient
 import org.json.JSONArray
 import org.json.JSONObject
 import org.mozilla.geckoview.GeckoSession
 
 /**
- * In-page translation backed by Google Translate (gtx), not an LLM.
- *
- * Flow:
- *  1. Read visible text nodes through the page bridge.
- *  2. Translate unique strings with Google Translate.
- *  3. Write translations back into the live DOM.
- *  4. If the page cannot be rewritten, open Google's hosted viewer for the URL.
+ * In-page translation: Argos first, Lingva second, LibreTranslate fallback.
+ * Results are cached in memory. No LLM.
  */
 object PageTranslator {
 
@@ -24,14 +20,20 @@ object PageTranslator {
         val confident: Boolean,
     )
 
-    enum class Mode { IN_PAGE, GOOGLE_VIEWER }
+    enum class Mode { IN_PAGE }
 
     sealed interface Result {
         data class Applied(val language: String, val mode: Mode) : Result
         data class Error(val message: String) : Result
     }
 
-    private val google = GoogleTranslateClient()
+    private val argos = ArgosTranslateClient(
+        hosts = ArgosTranslateClient.ARGOS_HOSTS,
+    )
+    private val libre = ArgosTranslateClient(
+        hosts = ArgosTranslateClient.LIBRETRANSLATE_HOSTS,
+    )
+    private val lingva = LingvaTranslateClient()
 
     suspend fun detectLanguage(session: GeckoSession): Detection? {
         val raw = GeckoExtensionBridge.send(session, "detect_language", emptyMap())
@@ -50,7 +52,10 @@ object PageTranslator {
         }
         val sample = readReadableText(session).trim().take(400)
         if (sample.isBlank()) return null
-        val detected = google.detect(sample) ?: return null
+        val detected = argos.detect(sample)
+            ?: lingva.detect(sample)
+            ?: libre.detect(sample)
+            ?: return null
         val code = detected.code.lowercase().substringBefore('-')
         if (code == "und" || code == "en") return null
         return Detection(code, TranslateLanguages.displayName(code), detected.confident)
@@ -85,7 +90,7 @@ object PageTranslator {
 
         if (unique.isNotEmpty()) {
             val sources = unique.keys.toList()
-            val translated = google.translate(sources, targetCode = language.code)
+            val translated = translateTexts(sources, language.code)
             if (translated != null && translated.size == sources.size) {
                 val pairs = JSONArray()
                 sources.forEachIndexed { index, source ->
@@ -105,12 +110,6 @@ object PageTranslator {
             }
         }
 
-        val viewer = googleViewerUrl(pageUrl, language.code)
-        if (viewer != null && onOpenViewer != null) {
-            onOpenViewer(viewer)
-            return Result.Applied(language.displayName, Mode.GOOGLE_VIEWER)
-        }
-
         val reason = raw.removePrefix("ERR:")
         val message = when {
             raw == GeckoJs.UNAVAILABLE_SENTINEL ->
@@ -118,9 +117,26 @@ object PageTranslator {
             reason == "BRIDGE_PORT_NOT_READY" ->
                 "Translation isn't ready yet on this page. Try again in a moment."
             unique.isEmpty() -> "There's no page content to translate yet."
-            else -> "Google Translate could not rewrite this page. Try again."
+            else -> "Translation could not rewrite this page. Try again."
         }
         return Result.Error(message)
+    }
+
+    private suspend fun translateTexts(texts: List<String>, targetCode: String): List<String>? {
+        val (hits, missing) = com.wormhole.browser.core.translate.TranslationCache.getAll("auto", targetCode, texts)
+        if (missing.isEmpty()) return hits.map { it.orEmpty() }
+        val need = missing.map { texts[it] }
+        val fetched = argos.translate(need, targetCode = targetCode)
+            ?: lingva.translate(need, targetCode = targetCode)
+            ?: libre.translate(need, targetCode = targetCode)
+            ?: return null
+        if (fetched.size != need.size) return null
+        val out = hits.toMutableList()
+        missing.forEachIndexed { i, index ->
+            com.wormhole.browser.core.translate.TranslationCache.put("auto", targetCode, texts[index], fetched[i])
+            out[index] = fetched[i]
+        }
+        return out.map { it.orEmpty() }
     }
 
     suspend fun restoreOriginal(session: GeckoSession): Boolean {
@@ -148,16 +164,6 @@ object PageTranslator {
         )
         if (viaJs == GeckoJs.UNAVAILABLE_SENTINEL || viaJs.startsWith("ERR:")) return ""
         return viaJs.trim()
-    }
-
-    fun googleViewerUrl(pageUrl: String, targetCode: String): String? {
-        val url = pageUrl.trim()
-        if (url.isBlank()) return null
-        if (!url.startsWith("http://") && !url.startsWith("https://")) return null
-        if (url.contains("translate.google.")) return null
-        val tl = targetCode.lowercase().substringBefore('-').ifBlank { "en" }
-        val encoded = java.net.URLEncoder.encode(url, Charsets.UTF_8.name())
-        return "https://translate.google.com/translate?sl=auto&tl=$tl&u=$encoded"
     }
 
     private fun shouldTranslate(text: String): Boolean {

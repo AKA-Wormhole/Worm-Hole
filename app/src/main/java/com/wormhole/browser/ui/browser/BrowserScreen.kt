@@ -1136,13 +1136,8 @@ fun BrowserScreen(
                     onShowOriginal = {
                         val session = activeTab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
                         coroutineScope.launch {
-                            if (translateMode == com.wormhole.browser.core.gecko.PageTranslator.Mode.GOOGLE_VIEWER) {
-                                session.goBack()
-                                pageTranslated = false
-                            } else {
-                                val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
-                                if (restored) pageTranslated = false
-                            }
+                            val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
+                            if (restored) pageTranslated = false
                         }
                     },
                     onPickLanguage = {
