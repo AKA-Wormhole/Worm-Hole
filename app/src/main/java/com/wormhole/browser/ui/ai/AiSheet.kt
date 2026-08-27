@@ -71,6 +71,7 @@ import com.wormhole.browser.core.ai.ChatHistoryRepository
 import com.wormhole.browser.core.ai.GeminiClient
 import com.wormhole.browser.core.ai.agent.AgentAction
 import com.wormhole.browser.core.ai.agent.AgentObservation
+import com.wormhole.browser.core.ai.agent.IdentifiedObservation
 import com.wormhole.browser.core.ai.agent.AgentRunResult
 import com.wormhole.browser.core.ai.agent.BrowserAgent
 import com.wormhole.browser.core.browser.BrowserViewModel
@@ -102,7 +103,11 @@ fun AiSheet(
 
     var conversationId by remember { mutableStateOf<Long?>(null) }
     val messages = remember { mutableStateListOf<ChatMessage>() }
-    val actions = remember { mutableStateListOf<AgentObservation>() }
+    val actions = remember { mutableStateListOf<IdentifiedObservation>() }
+    // Monotonic source for IdentifiedObservation ids -- see that class's doc
+    // for why AgentObservation.hashCode() alone isn't safe to key a
+    // LazyColumn item on.
+    val nextObservationId = remember { java.util.concurrent.atomic.AtomicLong(0L) }
 
     var input by remember { mutableStateOf("") }
     var working by remember { mutableStateOf(false) }
@@ -215,7 +220,10 @@ fun AiSheet(
                         text,
                         onObservation = { observation ->
                             try {
-                                actions += observation
+                                actions += IdentifiedObservation(
+                                    id = nextObservationId.getAndIncrement(),
+                                    observation = observation,
+                                )
                                 if (!closedForNavigation &&
                                     observation.result.success &&
                                     observation.action.tool in navigationTools
@@ -390,8 +398,8 @@ fun AiSheet(
                                 }
                             }
                         }
-                        items(actions, key = { "a${it.hashCode()}" }) { observation ->
-                            AgentActionChip(observation)
+                        items(actions, key = { it.id }) { identified ->
+                            AgentActionChip(identified.observation)
                         }
                         if (working) {
                             item {

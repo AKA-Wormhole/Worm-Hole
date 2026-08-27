@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Settings
@@ -63,7 +62,6 @@ fun HomeToolsMenu(
     onHistoryClick: () -> Unit = onLibraryClick,
     onPasswordsClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onExtensionsClick: () -> Unit = {},
     onNewIncognitoTabClick: () -> Unit,
     onAssistantClick: () -> Unit = {},
     // Bounds (in root/window coordinates) of the menu button that opened

@@ -52,13 +52,20 @@ object PageTranslator {
         }
         if (raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) {
             val reason = raw.removePrefix("ERR:")
-            return Result.Error(
-                if (raw == GeckoJs.UNAVAILABLE_SENTINEL || reason == "BRIDGE_PORT_NOT_READY") {
+            val message = when {
+                raw == GeckoJs.UNAVAILABLE_SENTINEL -> {
+                    val installError = GeckoExtensionBridge.lastInstallError
+                    if (installError != null) {
+                        "Translation is unavailable: the page bridge failed to install ($installError)."
+                    } else {
+                        "Translation isn't ready yet on this page. Try again in a moment."
+                    }
+                }
+                reason == "BRIDGE_PORT_NOT_READY" ->
                     "Translation isn't ready yet on this page. Try again in a moment."
-                } else {
-                    "Could not read this page for translation ($reason)."
-                },
-            )
+                else -> "Could not read this page for translation ($reason)."
+            }
+            return Result.Error(message)
         }
         val nodes = parseNodes(raw)
         if (nodes.isEmpty()) {

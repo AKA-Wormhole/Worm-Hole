@@ -46,6 +46,7 @@ object GeckoExtensionBridge {
     private const val EXTENSION_ID = "knot-bridge@wormhole.browser"
     private const val NATIVE_APP_ID = "knot-bridge"
     private const val COMMAND_TIMEOUT_MS = 8_000L
+    private const val MAX_INSTALL_ATTEMPTS = 3
 
     @Volatile private var extension: WebExtension? = null
     @Volatile private var installFailure: String? = null
@@ -75,20 +76,33 @@ object GeckoExtensionBridge {
         if (extension != null) return
         synchronized(installLock) {
             if (extension != null) return
-            runtime.webExtensionController
-                .ensureBuiltIn(EXTENSION_LOCATION, EXTENSION_ID)
-                .accept(
-                    { ext ->
-                        extension = ext
-                        installFailure = null
-                        Log.i(TAG, "knot-bridge extension installed")
-                    },
-                    { error ->
-                        installFailure = error?.message ?: "unknown install error"
-                        Log.w(TAG, "knot-bridge extension failed to install", error)
-                    },
-                )
+            installOnce(runtime, attempt = 1)
         }
+    }
+
+    private fun installOnce(runtime: GeckoRuntime, attempt: Int) {
+        runtime.webExtensionController
+            .ensureBuiltIn(EXTENSION_LOCATION, EXTENSION_ID)
+            .accept(
+                { ext ->
+                    extension = ext
+                    installFailure = null
+                    Log.i(TAG, "knot-bridge extension installed (attempt $attempt)")
+                },
+                { error ->
+                    val message = error?.message ?: "unknown install error"
+                    Log.w(TAG, "knot-bridge extension failed to install (attempt $attempt): $message", error)
+                    // ensureBuiltIn can fail transiently very early in process
+                    // startup (runtime not fully warmed up yet); one retry
+                    // clears most of those without leaving translation/agent
+                    // features permanently dead for the rest of the process.
+                    if (attempt < MAX_INSTALL_ATTEMPTS) {
+                        installOnce(runtime, attempt + 1)
+                    } else {
+                        installFailure = message
+                    }
+                },
+            )
     }
 
     /**
@@ -146,6 +160,14 @@ object GeckoExtensionBridge {
         channel.pending.remove(requestId)?.deferred?.complete(json)
     }
 
+    /** How long to wait for the extension's port to open before giving up on a call. */
+    private const val PORT_READY_TIMEOUT_MS = 4_000L
+    private const val PORT_READY_POLL_MS = 100L
+
+    /** Commands worth retrying transparently when the bridge isn't ready yet or a call drops. */
+    private const val DEFAULT_RETRIES = 2
+    private const val RETRY_BACKOFF_MS = 250L
+
     /**
      * Sends [command] with [args] to the page loaded in [session] and
      * suspends for the content script's reply.
@@ -157,14 +179,6 @@ object GeckoExtensionBridge {
      * string if the content script itself reported an error or the call
      * timed out.
      */
-    /** How long to wait for the extension's port to open before giving up on a call. */
-    private const val PORT_READY_TIMEOUT_MS = 4_000L
-    private const val PORT_READY_POLL_MS = 100L
-
-    /** Commands worth retrying transparently when the bridge isn't ready yet or a call drops. */
-    private const val DEFAULT_RETRIES = 2
-    private const val RETRY_BACKOFF_MS = 250L
-
     suspend fun send(session: GeckoSession, command: String, args: Map<String, String> = emptyMap()): String {
         val json = JSONObject()
         args.forEach { (key, value) -> json.put(key, value) }
@@ -192,6 +206,12 @@ object GeckoExtensionBridge {
     }
 
     private suspend fun sendOnce(session: GeckoSession, command: String, args: JSONObject): String {
+        // The extension installs asynchronously (ensureBuiltIn's callback can
+        // land well after the first tab's session is created), so attach()
+        // called from GeckoSessionPool at session-creation time can silently
+        // no-op if `extension` wasn't set yet. Re-attach here too, once the
+        // extension is actually ready, so that first session doesn't end up
+        // permanently un-wired just because of that ordering race.
         val ext = extension ?: return GeckoJs.UNAVAILABLE_SENTINEL
         if (channels[session] == null) attach(session)
         val channel = channels[session] ?: return GeckoJs.UNAVAILABLE_SENTINEL

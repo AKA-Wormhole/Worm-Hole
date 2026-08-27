@@ -168,7 +168,6 @@ fun NewTabSurface(
     onOpenHistoryLibrary: () -> Unit = onLibraryClick,
     onPasswordsClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
-    onExtensionsClick: () -> Unit = {},
     onNewIncognitoTabClick: () -> Unit = {},
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -441,7 +440,6 @@ fun NewTabSurface(
             onHistoryClick = onOpenHistoryLibrary,
             onPasswordsClick = onPasswordsClick,
             onSettingsClick = onSettingsClick,
-            onExtensionsClick = onExtensionsClick,
             onNewIncognitoTabClick = onNewIncognitoTabClick,
             onAssistantClick = onAskWormHoleClick,
             anchorBounds = menuAnchorBounds,

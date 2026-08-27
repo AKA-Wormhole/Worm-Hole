@@ -25,6 +25,18 @@ data class AgentAction(val tool: String, val arguments: Map<String, String> = em
 data class AgentObservation(val action: AgentAction, val result: ToolResult)
 data class AgentRunResult(val answer: String, val observations: List<AgentObservation> = emptyList())
 
+/**
+ * [AgentObservation] plus a process-unique sequence id, used purely as a
+ * stable LazyColumn key. AgentObservation itself is a plain data class with
+ * no identity field, so two observations with the same tool/arguments/result
+ * (e.g. two consecutive failed reads, or two identical "scroll down" steps)
+ * are `equal` and share a `hashCode()` -- keying a LazyColumn item on
+ * `hashCode()` alone crashes with a duplicate-key IllegalArgumentException
+ * the moment that happens. Wrapping with a monotonically increasing id
+ * avoids relying on content-derived hashes ever being unique.
+ */
+data class IdentifiedObservation(val id: Long, val observation: AgentObservation)
+
 class BrowserToolRegistry {
     private val tools = linkedMapOf<String, BrowserTool>()
     fun register(tool: BrowserTool) { tools[tool.name] = tool }

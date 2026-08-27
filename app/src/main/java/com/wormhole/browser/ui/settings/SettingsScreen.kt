@@ -99,7 +99,6 @@ fun SettingsScreen(
     onAboutClick: () -> Unit = {},
     onLogsClick: () -> Unit = {},
     onPasskeysClick: () -> Unit,
-    onExtensionsClick: () -> Unit = {},
     onClearBrowsingData: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     onTermsClick: () -> Unit,
