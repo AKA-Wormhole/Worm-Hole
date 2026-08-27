@@ -145,3 +145,63 @@ function connectNative() {
   }
 }
 connectNative();
+
+const LINGVA_HOSTS = [
+  "https://lingva.ml",
+  "https://lingva.garudalinux.org",
+  "https://translate.plausibility.cloud",
+];
+const LIBRE_HOSTS = [
+  "https://translate.fedilab.app",
+  "https://translate.cutie.dating",
+  "https://libretranslate.com",
+];
+
+async function translateOneLingva(text, target) {
+  const encoded = encodeURIComponent(text);
+  for (let i = 0; i < LINGVA_HOSTS.length; i++) {
+    try {
+      const res = await fetch(LINGVA_HOSTS[i] + "/api/v1/auto/" + target + "/" + encoded);
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (json && json.translation) return String(json.translation);
+    } catch (_e) {}
+  }
+  return null;
+}
+
+async function translateOneLibre(text, target) {
+  for (let i = 0; i < LIBRE_HOSTS.length; i++) {
+    try {
+      const res = await fetch(LIBRE_HOSTS[i] + "/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ q: text, source: "auto", target: target, format: "text" }),
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (json && json.translatedText) return String(json.translatedText);
+    } catch (_e) {}
+  }
+  return null;
+}
+
+async function translateBatch(texts, target) {
+  const out = [];
+  const lang = String(target || "en").toLowerCase().split("-")[0] || "en";
+  for (let i = 0; i < texts.length; i++) {
+    const original = String(texts[i] || "");
+    const translated =
+      (await translateOneLingva(original, lang)) ||
+      (await translateOneLibre(original, lang)) ||
+      original;
+    out.push(translated);
+  }
+  return out;
+}
+
+browser.runtime.onMessage.addListener(function (message) {
+  if (!message || message.cmd !== "translate_batch") return;
+  const texts = Array.isArray(message.texts) ? message.texts.slice(0, 40) : [];
+  return translateBatch(texts, message.target);
+});

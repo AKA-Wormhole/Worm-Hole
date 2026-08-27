@@ -343,4 +343,81 @@
         return Promise.resolve("UNKNOWN_COMMAND");
     }
   });
+
+  function shouldTranslateText(text) {
+    const trimmed = String(text || "").trim();
+    if (trimmed.length < 2) return false;
+    if (/^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed)) return false;
+    return true;
+  }
+
+  async function translatePageInPlace(lang) {
+    const raw = collectTextNodes(80);
+    let nodes = [];
+    try {
+      nodes = JSON.parse(raw);
+    } catch (_e) {
+      nodes = [];
+    }
+    const unique = [];
+    const indexMap = {};
+    nodes.forEach(function (node) {
+      if (!shouldTranslateText(node.text)) return;
+      if (indexMap[node.text] == null) {
+        indexMap[node.text] = unique.length;
+        unique.push(node.text);
+      }
+    });
+    if (!unique.length) return;
+    const limited = unique
+      .map(function (text, i) { return { text: text, i: i }; })
+      .sort(function (a, b) { return b.text.length - a.text.length; })
+      .slice(0, 40);
+    const payload = limited.map(function (item) { return item.text; });
+    let translated = null;
+    try {
+      translated = await browser.runtime.sendMessage({
+        cmd: "translate_batch",
+        target: lang,
+        texts: payload,
+      });
+    } catch (_err) {
+      translated = null;
+    }
+    if (!translated || !translated.length) return;
+    const pairs = [];
+    limited.forEach(function (item, idx) {
+      const next = translated[idx];
+      if (typeof next !== "string" || !next) return;
+      nodes.forEach(function (node) {
+        if (node.text === item.text) pairs.push({ id: node.id, text: next });
+      });
+    });
+    applyTranslations(pairs);
+    try {
+      history.replaceState(null, "", location.pathname + location.search);
+    } catch (_e) {}
+  }
+
+  function handleTranslateHash() {
+    const hash = String(location.hash || "");
+    const match = hash.match(/^#wh-tl=([a-zA-Z-]+)/);
+    if (match) {
+      translatePageInPlace(match[1].toLowerCase());
+      return;
+    }
+    if (hash === "#wh-tl-restore") {
+      restoreOriginals();
+      try {
+        history.replaceState(null, "", location.pathname + location.search);
+      } catch (_e) {}
+    }
+  }
+
+  window.addEventListener("hashchange", handleTranslateHash);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", handleTranslateHash);
+  } else {
+    handleTranslateHash();
+  }
 })();
