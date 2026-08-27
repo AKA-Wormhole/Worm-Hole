@@ -4,13 +4,21 @@ import com.wormhole.browser.core.ai.TranslateLanguage
 import com.wormhole.browser.core.ai.TranslateLanguages
 import com.wormhole.browser.core.translate.ArgosTranslateClient
 import com.wormhole.browser.core.translate.LingvaTranslateClient
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.mozilla.geckoview.GeckoSession
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 
 /**
- * In-page translation: Argos first, Lingva second, LibreTranslate fallback.
- * Results are cached in memory. No LLM.
+ * Page translation without the Gecko page bridge.
+ *
+ * GeckoView has no public evaluateJS API, and the bundled WebExtension bridge
+ * is unreliable. Translation therefore uses the page URL directly:
+ * Microsoft Translate the Web first, then a fetched-text reader document.
  */
 object PageTranslator {
 
@@ -35,21 +43,13 @@ object PageTranslator {
     )
     private val lingva = LingvaTranslateClient()
 
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .build()
+
     suspend fun detectLanguage(session: GeckoSession): Detection? {
-        val raw = GeckoExtensionBridge.send(session, "detect_language", emptyMap())
-        if (raw != GeckoJs.UNAVAILABLE_SENTINEL && !raw.startsWith("ERR:")) {
-            val json = runCatching {
-                val start = raw.indexOf('{')
-                val end = raw.lastIndexOf('}')
-                JSONObject(if (start >= 0 && end > start) raw.substring(start, end + 1) else raw)
-            }.getOrNull()
-            if (json != null) {
-                val code = json.optString("code").lowercase().substringBefore('-').ifBlank { "und" }
-                if (code != "und" && code != "en") {
-                    return Detection(code, TranslateLanguages.displayName(code), json.optBoolean("confident", true))
-                }
-            }
-        }
         val sample = readReadableText(session).trim().take(400)
         if (sample.isBlank()) return null
         val detected = detectSample(sample) ?: return null
@@ -64,87 +64,101 @@ object PageTranslator {
         pageUrl: String = "",
         onOpenViewer: ((String) -> Unit)? = null,
     ): Result {
-        var raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "80"))
-        if (raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) {
-            kotlinx.coroutines.delay(350)
-            raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "80"))
-        }
-
-        val nodes = if (raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) {
-            emptyList()
-        } else {
-            parseNodes(raw)
-        }
-
-        val unique = LinkedHashMap<String, MutableList<Int>>()
-        nodes.forEach { node ->
-            if (shouldTranslate(node.text)) {
-                unique.getOrPut(node.text) { mutableListOf() }.add(node.id)
-            }
-        }
-
-        if (unique.isNotEmpty()) {
-            val sources = unique.keys.sortedByDescending { it.length }.take(40)
-            val translated = translateTexts(sources, language.code)
-            if (translated != null && translated.size == sources.size) {
-                val pairs = JSONArray()
-                sources.forEachIndexed { index, source ->
-                    val text = translated.getOrNull(index) ?: source
-                    unique[source]?.forEach { id ->
-                        pairs.put(JSONObject().put("id", id).put("text", text))
-                    }
-                }
-                val applied = GeckoExtensionBridge.send(
-                    session,
-                    "apply_translations",
-                    JSONObject().put("pairs", pairs),
-                )
-                if (!applied.startsWith("ERR:") && applied != GeckoJs.UNAVAILABLE_SENTINEL && !applied.startsWith("APPLIED:0")) {
-                    return Result.Applied(language.displayName, Mode.IN_PAGE)
-                }
-            }
-        }
-
-        val article = readReadableText(session).trim()
-        if (article.length >= 40) {
-            val chunks = article.chunked(900).take(8)
-            val translatedChunks = translateTexts(chunks, language.code)
-            if (translatedChunks != null && translatedChunks.size == chunks.size) {
-                val full = translatedChunks.joinToString("")
-                val applied = GeckoExtensionBridge.send(
-                    session,
-                    "apply_full_text",
-                    mapOf("text" to full.take(16000)),
-                )
-                if (applied.contains("APPLIED")) {
-                    return Result.Applied(language.displayName, Mode.IN_PAGE)
-                }
-            }
-        }
-
         val viewer = viewerUrl(pageUrl, language.code)
         if (viewer != null && onOpenViewer != null) {
             onOpenViewer(viewer)
             return Result.Applied(language.displayName, Mode.VIEWER)
         }
 
-        val reason = raw.removePrefix("ERR:")
-        val message = when {
-            raw == GeckoJs.UNAVAILABLE_SENTINEL || reason == "BRIDGE_PORT_NOT_READY" ->
-                "Couldn't reach this page. Open a finished https page and try again."
-            unique.isEmpty() -> "There's no page content to translate yet."
-            else -> "Couldn't rewrite this page. Check your connection and try again."
+        val sourceText = fetchPageText(pageUrl).ifBlank { readReadableText(session) }
+        if (sourceText.length < 40) {
+            return Result.Error("Open a finished https page to translate.")
         }
-        return Result.Error(message)
+        val chunks = sourceText.chunked(900).take(8)
+        val translated = translateTexts(chunks, language.code)
+            ?: return Result.Error("Couldn't reach a translation server. Try again.")
+        val body = htmlEscape(translated.joinToString(""))
+        val title = htmlEscape("Translated to ${language.displayName}")
+        val document = """
+            <!doctype html>
+            <html>
+            <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width, initial-scale=1"/>
+              <title>$title</title>
+              <style>
+                body { font-family: sans-serif; line-height: 1.5; padding: 16px; max-width: 40rem; margin: 0 auto; }
+                h1 { font-size: 1.1rem; }
+                p { white-space: pre-wrap; }
+              </style>
+            </head>
+            <body>
+              <h1>$title</h1>
+              <p>$body</p>
+            </body>
+            </html>
+        """.trimIndent()
+        val dataUrl = "data:text/html;charset=utf-8," + URLEncoder.encode(document, StandardCharsets.UTF_8)
+        if (onOpenViewer != null) {
+            onOpenViewer(dataUrl)
+            return Result.Applied(language.displayName, Mode.VIEWER)
+        }
+        session.loadUri(dataUrl)
+        return Result.Applied(language.displayName, Mode.VIEWER)
     }
 
     private fun viewerUrl(pageUrl: String, targetCode: String): String? {
         val url = pageUrl.trim()
         if (!url.startsWith("http://") && !url.startsWith("https://")) return null
+        if (url.startsWith("data:")) return null
         val target = targetCode.lowercase().substringBefore('-').ifBlank { "en" }
-        val encoded = java.net.URLEncoder.encode(url, java.nio.charset.StandardCharsets.UTF_8)
+        val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8)
         return "https://www.translatetheweb.com/?from=&to=$target&a=$encoded"
     }
+
+    private suspend fun fetchPageText(pageUrl: String): String = withContext(Dispatchers.IO) {
+        val url = pageUrl.trim()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return@withContext ""
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "text/html,application/xhtml+xml")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .get()
+            .build()
+        val html = runCatching {
+            http.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                response.body?.string()
+            }
+        }.getOrNull().orEmpty()
+        stripHtml(html).trim()
+    }
+
+    private fun stripHtml(html: String): String {
+        if (html.isBlank()) return ""
+        var text = html
+            .replace(Regex("(?is)<script[^>]*>.*?</script>"), " ")
+            .replace(Regex("(?is)<style[^>]*>.*?</style>"), " ")
+            .replace(Regex("(?is)<noscript[^>]*>.*?</noscript>"), " ")
+            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</p>"), "\n\n")
+            .replace(Regex("(?i)</h[1-6]>"), "\n\n")
+            .replace(Regex("<[^>]+>"), " ")
+            .replace(Regex("&nbsp;"), " ")
+            .replace(Regex("&amp;"), "&")
+            .replace(Regex("&lt;"), "<")
+            .replace(Regex("&gt;"), ">")
+            .replace(Regex("&quot;"), "\"")
+            .replace(Regex("&#39;"), "'")
+            .replace(Regex("\\s+"), " ")
+        return text.take(12000)
+    }
+
+    private fun htmlEscape(text: String): String =
+        text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
 
     private suspend fun detectSample(sample: String): Pair<String, Boolean>? {
         argos.detect(sample)?.let { return it.code to it.confident }
@@ -171,61 +185,23 @@ object PageTranslator {
     }
 
     suspend fun restoreOriginal(session: GeckoSession): Boolean {
-        val result = GeckoExtensionBridge.send(session, "restore_originals", emptyMap())
-        return result.startsWith("RESTORED")
+        return try {
+            session.goBack()
+            true
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     suspend fun readReadableText(session: GeckoSession): String {
-        repeat(3) { attempt ->
-            val viaBridge = GeckoExtensionBridge.send(session, "read_page")
-            if (viaBridge != GeckoJs.UNAVAILABLE_SENTINEL &&
-                !viaBridge.startsWith("ERR:") &&
-                viaBridge.isNotBlank()
-            ) {
-                return viaBridge.trim()
-            }
-            kotlinx.coroutines.delay(250L * (attempt + 1))
-        }
         val viaJs = GeckoJs.evaluate(
             session,
-            "(function(){try{" +
-                "var t=(document.body&&document.body.innerText)||'';" +
-                "return String(t).slice(0,16000);" +
-                "}catch(e){return ''}})()",
+            "(function(){try{var t=(document.body&&document.body.innerText)||'';return String(t).slice(0,16000);}catch(e){return ''}})()",
         )
         if (viaJs == GeckoJs.UNAVAILABLE_SENTINEL || viaJs.startsWith("ERR:")) return ""
         return viaJs.trim()
     }
 
-    private fun shouldTranslate(text: String): Boolean {
-        val trimmed = text.trim()
-        if (trimmed.length < 2) return false
-        if (trimmed.all { it.isDigit() || it.isWhitespace() || it in ".,:;/%+-#$€£¥" }) return false
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("www.")) return false
-        return true
-    }
-
-    private fun parseNodes(raw: String): List<TextNode> {
-        val json = raw.trim()
-            .removeSurrounding("\"")
-            .replace("\\\"", "\"")
-            .let { text ->
-            val start = text.indexOf('[')
-            val end = text.lastIndexOf(']')
-            if (start >= 0 && end > start) text.substring(start, end + 1) else text
-        }
-        return runCatching {
-            val array = JSONArray(json)
-            buildList {
-                for (i in 0 until array.length()) {
-                    val obj = array.optJSONObject(i) ?: continue
-                    val id = obj.optInt("id", i)
-                    val text = obj.optString("text")
-                    if (text.isNotBlank()) add(TextNode(id, text))
-                }
-            }
-        }.getOrDefault(emptyList())
-    }
-
-    private data class TextNode(val id: Int, val text: String)
+    private const val USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36"
 }
