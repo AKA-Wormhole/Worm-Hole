@@ -52,13 +52,10 @@ object PageTranslator {
         }
         val sample = readReadableText(session).trim().take(400)
         if (sample.isBlank()) return null
-        val detected = argos.detect(sample)
-            ?: lingva.detect(sample)
-            ?: libre.detect(sample)
-            ?: return null
-        val code = detected.code.lowercase().substringBefore('-')
+        val detected = detectSample(sample) ?: return null
+        val code = detected.first.lowercase().substringBefore('-')
         if (code == "und" || code == "en") return null
-        return Detection(code, TranslateLanguages.displayName(code), detected.confident)
+        return Detection(code, TranslateLanguages.displayName(code), detected.second)
     }
 
     suspend fun translatePage(
@@ -120,6 +117,13 @@ object PageTranslator {
             else -> "Translation could not rewrite this page. Try again."
         }
         return Result.Error(message)
+    }
+
+    private suspend fun detectSample(sample: String): Pair<String, Boolean>? {
+        argos.detect(sample)?.let { return it.code to it.confident }
+        lingva.detect(sample)?.let { return it.code to it.confident }
+        libre.detect(sample)?.let { return it.code to it.confident }
+        return null
     }
 
     private suspend fun translateTexts(texts: List<String>, targetCode: String): List<String>? {
