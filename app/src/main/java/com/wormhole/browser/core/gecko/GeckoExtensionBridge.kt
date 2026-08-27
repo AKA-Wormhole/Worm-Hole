@@ -78,13 +78,13 @@ object GeckoExtensionBridge {
     fun ensureInstalled(runtime: GeckoRuntime) {
         runtimeRef = runtime
         if (extension != null) {
-            bindRuntimeDelegate(runtime, extension!!)
+            extension?.let { bindRuntimeDelegate(it) }
             return
         }
         synchronized(installLock) {
             runtimeRef = runtime
             if (extension != null) {
-                bindRuntimeDelegate(runtime, extension!!)
+                extension?.let { bindRuntimeDelegate(it) }
                 return
             }
             installOnce(runtime, attempt = 1)
@@ -98,7 +98,7 @@ object GeckoExtensionBridge {
                 { ext ->
                     extension = ext
                     installFailure = null
-                    runtimeRef?.let { bindRuntimeDelegate(it, ext) }
+                    ext?.let { installed -> bindRuntimeDelegate(installed) }
                     Log.i(TAG, "knot-bridge extension installed (attempt $attempt)")
                 },
                 { error ->
@@ -156,10 +156,9 @@ object GeckoExtensionBridge {
         session.webExtensionController.setMessageDelegate(ext, null, NATIVE_APP_ID)
     }
 
-    private fun bindRuntimeDelegate(runtime: GeckoRuntime, ext: WebExtension) {
+    private fun bindRuntimeDelegate(ext: WebExtension) {
         runCatching {
-            runtime.webExtensionController.setMessageDelegate(
-                ext,
+            ext.setMessageDelegate(
                 object : WebExtension.MessageDelegate {
                     override fun onConnect(port: WebExtension.Port) {
                         if (port.name != NATIVE_APP_ID) return
@@ -251,7 +250,7 @@ object GeckoExtensionBridge {
         // extension is actually ready, so that first session doesn't end up
         // permanently un-wired just because of that ordering race.
         val ext = awaitExtension() ?: return GeckoJs.UNAVAILABLE_SENTINEL
-        runtimeRef?.let { bindRuntimeDelegate(it, ext) }
+        bindRuntimeDelegate(ext)
         if (channels[session] == null) attach(session)
         val channel = channels[session]
         val port = (channel?.let { awaitPort(it) } ?: anyPort() ?: awaitGlobalPort())
