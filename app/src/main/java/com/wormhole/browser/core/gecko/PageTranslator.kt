@@ -66,8 +66,8 @@ object PageTranslator {
     ): Result {
         var raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "360"))
         var readAttempts = 1
-        while ((raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) && readAttempts < 3) {
-            kotlinx.coroutines.delay(300L * readAttempts)
+        while ((raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) && readAttempts < 6) {
+            kotlinx.coroutines.delay(400L * readAttempts)
             raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "360"))
             readAttempts++
         }

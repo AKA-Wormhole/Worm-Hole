@@ -161,8 +161,8 @@ object GeckoExtensionBridge {
     }
 
     /** How long to wait for the extension's port to open before giving up on a call. */
-    private const val PORT_READY_TIMEOUT_MS = 4_000L
-    private const val PORT_READY_POLL_MS = 100L
+    private const val PORT_READY_TIMEOUT_MS = 6_000L
+    private const val PORT_READY_POLL_MS = 80L
 
     /** Commands worth retrying transparently when the bridge isn't ready yet or a call drops. */
     private const val DEFAULT_RETRIES = 2
@@ -202,7 +202,10 @@ object GeckoExtensionBridge {
     private fun isTransientFailure(result: String): Boolean {
         return result == GeckoJs.UNAVAILABLE_SENTINEL ||
             result == "ERR:BRIDGE_PORT_NOT_READY" ||
-            result == "ERR:BRIDGE_TIMEOUT"
+            result == "ERR:BRIDGE_TIMEOUT" ||
+            result == "ERR:NO_PAGE_BRIDGE" ||
+            result.contains("Receiving end does not exist") ||
+            result.contains("Could not establish connection")
     }
 
     private suspend fun sendOnce(session: GeckoSession, command: String, args: JSONObject): String {
@@ -215,7 +218,7 @@ object GeckoExtensionBridge {
         val ext = extension ?: return GeckoJs.UNAVAILABLE_SENTINEL
         if (channels[session] == null) attach(session)
         val channel = channels[session] ?: return GeckoJs.UNAVAILABLE_SENTINEL
-        val port = awaitPort(channel) ?: return "ERR:BRIDGE_PORT_NOT_READY"
+        val port = awaitPort(channel) ?: anyPort() ?: return "ERR:BRIDGE_PORT_NOT_READY"
 
         val requestId = UUID.randomUUID().toString()
         val payload = JSONObject().apply {
@@ -253,6 +256,13 @@ object GeckoExtensionBridge {
      * sent right after navigation. Poll briefly for the port instead of
      * failing immediately the first time it isn't there yet.
      */
+    private fun anyPort(): WebExtension.Port? {
+        channels.values.forEach { channel ->
+            channel.port?.let { return it }
+        }
+        return null
+    }
+
     private suspend fun awaitPort(channel: SessionChannel): WebExtension.Port? {
         channel.port?.let { return it }
         val deadline = System.currentTimeMillis() + PORT_READY_TIMEOUT_MS

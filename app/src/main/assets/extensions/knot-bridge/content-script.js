@@ -207,6 +207,9 @@
         return "ERR:BAD_PAIRS";
       }
     }
+    if (!window.__whTranslateNodes || !window.__whTranslateNodes.length) {
+      collectTextNodes(360);
+    }
     const stored = window.__whTranslateNodes || [];
     let count = 0;
     if (!Array.isArray(list)) return "APPLIED:0";
