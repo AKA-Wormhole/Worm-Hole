@@ -10,8 +10,8 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /**
- * Live trending search terms. Never returns a hardcoded placeholder list —
- * if every network source fails the result is empty.
+ * Live English trending topics for the home page. Filters out random names
+ * and non-English strings. Never returns a hardcoded placeholder list.
  */
 object TrendingSearchesClient {
 
@@ -32,13 +32,23 @@ object TrendingSearchesClient {
             return cached.terms
         }
         val terms = withContext(Dispatchers.IO) {
-            fetchGoogleRss()
-                ?: fetchGoogleDailyTrends()
-                ?: fetchWikipediaMostRead()
-                ?: emptyList()
-        }.distinct().take(8)
+            val collected = LinkedHashSet<String>()
+            fetchGoogleNews()?.let { collected += it }
+            fetchGoogleRss()?.let { collected += it }
+            fetchGoogleDailyTrends()?.let { collected += it }
+            collected.mapNotNull(::cleanTopic).distinctBy { it.lowercase() }.take(8)
+        }
         cache = Snapshot(terms, System.currentTimeMillis())
         terms
+    }
+
+    private fun fetchGoogleNews(): List<String>? {
+        val body = get("https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en") ?: return null
+        val titles = TITLE_TAG.findAll(body).map { decodeXml(it.groupValues[1]).trim() }
+            .filter { it.isNotBlank() && !it.equals("Google News", ignoreCase = true) }
+            .map { it.substringBefore(" - ").substringBefore(" | ") }
+            .toList()
+        return titles.takeIf { it.size >= 3 }
     }
 
     private fun fetchGoogleRss(): List<String>? {
@@ -70,28 +80,41 @@ object TrendingSearchesClient {
         return out.takeIf { it.size >= 3 }
     }
 
-    private fun fetchWikipediaMostRead(): List<String>? {
-        val now = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-        now.add(java.util.Calendar.DAY_OF_YEAR, -1)
-        val y = now.get(java.util.Calendar.YEAR)
-        val m = (now.get(java.util.Calendar.MONTH) + 1).toString().padStart(2, '0')
-        val d = now.get(java.util.Calendar.DAY_OF_MONTH).toString().padStart(2, '0')
-        val body = get("https://en.wikipedia.org/api/rest_v1/feed/featured/$y/$m/$d") ?: return null
-        val articles = runCatching {
-            JSONObject(body).optJSONObject("mostread")?.optJSONArray("articles")
-        }.getOrNull() ?: return null
-        val out = ArrayList<String>()
-        for (i in 0 until articles.length()) {
-            val obj = articles.optJSONObject(i) ?: continue
-            val title = obj.optString("normalizedtitle").ifBlank { obj.optString("title") }
-                .replace('_', ' ')
-                .trim()
-            if (title.isBlank()) continue
-            if (title.startsWith("Wikipedia:") || title.startsWith("Special:")) continue
-            if (title.equals("Main Page", ignoreCase = true)) continue
-            out += title
+    internal fun cleanTopic(raw: String): String? {
+        var text = raw.trim()
+            .replace(Regex("\\s+"), " ")
+            .trim('"', '\'', '“', '”', '‘', '’')
+        if (text.length > 42) {
+            text = text.take(42).substringBeforeLast(' ').ifBlank { text.take(42) }
         }
-        return out.takeIf { it.size >= 3 }
+        if (text.length < 3) return null
+        val letters = text.count { it.isLetter() }
+        if (letters < 3) return null
+        if (text.any { it.isLetter() && it.code > 0x024F }) return null
+        if (!text.all { it.isLetterOrDigit() || it in " -'&.,!?" }) return null
+        val titled = titleCase(text)
+        if (looksLikePersonName(titled)) return null
+        if (titled.equals("Google News", ignoreCase = true)) return null
+        return titled
+    }
+
+    internal fun looksLikePersonName(text: String): Boolean {
+        val parts = text.split(' ').filter { it.isNotBlank() }
+        if (parts.size != 2) return false
+        return parts.all { token ->
+            token.length in 2..12 &&
+                token.first().isUpperCase() &&
+                token.drop(1).all { it.isLowerCase() || it == '\'' }
+        }
+    }
+
+    internal fun titleCase(text: String): String {
+        val small = setOf("a", "an", "the", "of", "and", "or", "for", "to", "in", "on", "at", "vs")
+        val words = text.lowercase().split(' ').filter { it.isNotBlank() }
+        return words.mapIndexed { index, word ->
+            if (index > 0 && word in small) word
+            else word.replaceFirstChar { it.uppercase() }
+        }.joinToString(" ")
     }
 
     private fun get(url: String): String? {
@@ -99,6 +122,7 @@ object TrendingSearchesClient {
             .url(url)
             .header("User-Agent", USER_AGENT)
             .header("Accept", "application/json, application/rss+xml, text/xml, */*")
+            .header("Accept-Language", "en-US,en;q=0.9")
             .get()
             .build()
         return runCatching {

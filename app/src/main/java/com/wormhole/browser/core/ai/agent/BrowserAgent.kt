@@ -129,6 +129,25 @@ class BrowserAgent(
         "Couldn't $action. Wait for the page to finish loading, then try again.",
     )
 
+    private fun nativeScroll(direction: String, amount: Int): Boolean {
+        val session = activeSession() ?: return false
+        return try {
+            val pixels = when (direction) {
+                "up" -> -amount.toDouble()
+                "top" -> -20000.0
+                "bottom" -> 20000.0
+                else -> amount.toDouble()
+            }
+            session.panZoomController.scrollBy(
+                org.mozilla.geckoview.ScreenLength.zero(),
+                org.mozilla.geckoview.ScreenLength.fromPixels(pixels),
+            )
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     private suspend fun bridgeRetry(command: String, args: Map<String, String> = emptyMap()): String {
         var last = GeckoJs.UNAVAILABLE_SENTINEL
         repeat(4) { attempt ->
@@ -370,8 +389,12 @@ class BrowserAgent(
         registry.register(SimpleTool("scroll", "Scroll page. Args: direction=up|down|top|bottom, amount?") { input ->
             val dir = input.arguments["direction"].orEmpty().lowercase().ifBlank { "down" }
             val amount = input.arguments["amount"]?.toIntOrNull() ?: 600
-            val out = bridgeRetry("scroll", mapOf("direction" to dir, "amount" to amount.toString()))
-            if (isBridgeFailure(out)) pageCommandFailed("scroll") else ToolResult(true, "Scrolled")
+            if (nativeScroll(dir, amount)) {
+                ToolResult(true, "Scrolled")
+            } else {
+                val out = bridgeRetry("scroll", mapOf("direction" to dir, "amount" to amount.toString()))
+                if (isBridgeFailure(out)) pageCommandFailed("scroll") else ToolResult(true, "Scrolled")
+            }
         })
         registry.register(SimpleTool("edit_page", "Replace text on the page. Args: find, replace, selector?") SimpleTool@{ input ->
             val find = input.arguments["find"].orEmpty()
