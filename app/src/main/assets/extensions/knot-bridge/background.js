@@ -5,6 +5,7 @@
 
 const NATIVE_APP_ID = "knot-bridge";
 const ports = new Set();
+const boundPorts = new WeakSet();
 
 function inlineCode(command, args) {
   const a = args || {};
@@ -21,6 +22,23 @@ function inlineCode(command, args) {
   }
   if (command === "get_page_info") {
     return "(function(){try{return JSON.stringify({title:document.title||'',url:location.href||''});}catch(e){return '{}';}})()";
+  }
+  if (command === "collect_text_nodes") {
+    const limit = parseInt(a.limit, 10) || 360;
+    return "(function(){try{var max=" + limit + ";var nodes=[];if(!document.body)return '[]';var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(n){if(!n.nodeValue||!n.nodeValue.trim())return NodeFilter.FILTER_REJECT;var p=n.parentElement;if(!p)return NodeFilter.FILTER_REJECT;var t=p.tagName;if(t==='SCRIPT'||t==='STYLE'||t==='NOSCRIPT'||t==='TEXTAREA'||t==='INPUT'||t==='CODE'||t==='PRE')return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT;}});var n;while((n=w.nextNode())&&nodes.length<max){var tx=n.nodeValue;if(tx&&tx.trim().length>=2)nodes.push({id:nodes.length,text:tx});}return JSON.stringify(nodes);}catch(e){return '[]';}})()";
+  }
+  if (command === "apply_translations") {
+    var pairs = a.pairs;
+    if (typeof pairs === "string") {
+      try { pairs = JSON.parse(pairs); } catch (e) { pairs = []; }
+    }
+    return "(function(){try{var pairs=" + JSON.stringify(pairs || []) + ";var max=360;var nodes=[];if(!document.body)return 'APPLIED:0';var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:function(n){if(!n.nodeValue||!n.nodeValue.trim())return NodeFilter.FILTER_REJECT;var p=n.parentElement;if(!p)return NodeFilter.FILTER_REJECT;var t=p.tagName;if(t==='SCRIPT'||t==='STYLE'||t==='NOSCRIPT'||t==='TEXTAREA'||t==='INPUT'||t==='CODE'||t==='PRE')return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT;}});var n;while((n=w.nextNode())&&nodes.length<max){var tx=n.nodeValue;if(tx&&tx.trim().length>=2)nodes.push(n);}var c=0;if(!Array.isArray(pairs))return 'APPLIED:0';for(var i=0;i<pairs.length;i++){var item=pairs[i]||{};var node=nodes[item.id];if(node&&typeof item.text==='string'){node.nodeValue=item.text;c++;}}return 'APPLIED:'+c;}catch(e){return 'ERR:'+e.message;}})()";
+  }
+  if (command === "restore_originals") {
+    return "'RESTORED:0'";
+  }
+  if (command === "apply_full_text") {
+    return "(function(){try{var t=" + JSON.stringify(String(a.text || "")) + ";var el=document.querySelector('article')||document.body;if(!el||!t)return 'APPLIED:0';el.innerText=t;return 'APPLIED_FULL';}catch(e){return 'ERR:'+e.message;}})()";
   }
   return null;
 }
@@ -103,7 +121,9 @@ async function handleMessage(port, message) {
 }
 
 function bindPort(port) {
-  if (port.name !== NATIVE_APP_ID) return;
+  if (!port || port.name !== NATIVE_APP_ID) return;
+  if (boundPorts.has(port)) return;
+  boundPorts.add(port);
   ports.add(port);
   port.onMessage.addListener((msg) => handleMessage(port, msg));
   port.onDisconnect.addListener(() => ports.delete(port));
@@ -111,3 +131,17 @@ function bindPort(port) {
 
 browser.runtime.onConnectNative.addListener(bindPort);
 browser.runtime.onConnect.addListener(bindPort);
+
+function connectNative() {
+  try {
+    const port = browser.runtime.connectNative(NATIVE_APP_ID);
+    bindPort(port);
+    port.onDisconnect.addListener(function () {
+      ports.delete(port);
+      setTimeout(connectNative, 500);
+    });
+  } catch (_e) {
+    setTimeout(connectNative, 800);
+  }
+}
+connectNative();

@@ -50,7 +50,10 @@ object GeckoExtensionBridge {
 
     @Volatile private var extension: WebExtension? = null
     @Volatile private var installFailure: String? = null
+    @Volatile private var runtimeRef: GeckoRuntime? = null
+    @Volatile private var globalPort: WebExtension.Port? = null
     private val installLock = Any()
+    private val pendingCalls = ConcurrentHashMap<String, PendingCall>()
 
     private data class PendingCall(val deferred: CompletableDeferred<JSONObject>)
 
@@ -73,9 +76,17 @@ object GeckoExtensionBridge {
      * install only happens once per process.
      */
     fun ensureInstalled(runtime: GeckoRuntime) {
-        if (extension != null) return
+        runtimeRef = runtime
+        if (extension != null) {
+            bindRuntimeDelegate(runtime, extension!!)
+            return
+        }
         synchronized(installLock) {
-            if (extension != null) return
+            runtimeRef = runtime
+            if (extension != null) {
+                bindRuntimeDelegate(runtime, extension!!)
+                return
+            }
             installOnce(runtime, attempt = 1)
         }
     }
@@ -87,6 +98,7 @@ object GeckoExtensionBridge {
                 { ext ->
                     extension = ext
                     installFailure = null
+                    runtimeRef?.let { bindRuntimeDelegate(it, ext) }
                     Log.i(TAG, "knot-bridge extension installed (attempt $attempt)")
                 },
                 { error ->
@@ -124,7 +136,7 @@ object GeckoExtensionBridge {
                     channel.port = port
                     port.setDelegate(object : WebExtension.PortDelegate {
                         override fun onPortMessage(message: Any, port: WebExtension.Port) {
-                            handleReply(channel, message)
+                            handleReply(message)
                         }
 
                         override fun onDisconnect(port: WebExtension.Port) {
@@ -140,12 +152,35 @@ object GeckoExtensionBridge {
     fun detach(session: GeckoSession) {
         val channel = channels.remove(session) ?: return
         channel.port?.disconnect()
-        channel.pending.values.forEach { it.deferred.cancel() }
         val ext = extension ?: return
         session.webExtensionController.setMessageDelegate(ext, null, NATIVE_APP_ID)
     }
 
-    private fun handleReply(channel: SessionChannel, raw: Any) {
+    private fun bindRuntimeDelegate(runtime: GeckoRuntime, ext: WebExtension) {
+        runCatching {
+            runtime.webExtensionController.setMessageDelegate(
+                ext,
+                object : WebExtension.MessageDelegate {
+                    override fun onConnect(port: WebExtension.Port) {
+                        if (port.name != NATIVE_APP_ID) return
+                        globalPort = port
+                        port.setDelegate(object : WebExtension.PortDelegate {
+                            override fun onPortMessage(message: Any, port: WebExtension.Port) {
+                                handleReply(message)
+                            }
+
+                            override fun onDisconnect(port: WebExtension.Port) {
+                                if (globalPort === port) globalPort = null
+                            }
+                        })
+                    }
+                },
+                NATIVE_APP_ID,
+            )
+        }
+    }
+
+    private fun handleReply(raw: Any) {
         val json = try {
             when (raw) {
                 is JSONObject -> raw
@@ -157,7 +192,7 @@ object GeckoExtensionBridge {
             return
         }
         val requestId = json.optString("requestId").takeIf { it.isNotBlank() } ?: return
-        channel.pending.remove(requestId)?.deferred?.complete(json)
+        pendingCalls.remove(requestId)?.deferred?.complete(json)
     }
 
     /** How long to wait for the extension's port to open before giving up on a call. */
@@ -215,10 +250,12 @@ object GeckoExtensionBridge {
         // no-op if `extension` wasn't set yet. Re-attach here too, once the
         // extension is actually ready, so that first session doesn't end up
         // permanently un-wired just because of that ordering race.
-        val ext = extension ?: return GeckoJs.UNAVAILABLE_SENTINEL
+        val ext = awaitExtension() ?: return GeckoJs.UNAVAILABLE_SENTINEL
+        runtimeRef?.let { bindRuntimeDelegate(it, ext) }
         if (channels[session] == null) attach(session)
-        val channel = channels[session] ?: return GeckoJs.UNAVAILABLE_SENTINEL
-        val port = awaitPort(channel) ?: anyPort() ?: return "ERR:BRIDGE_PORT_NOT_READY"
+        val channel = channels[session]
+        val port = (channel?.let { awaitPort(it) } ?: anyPort() ?: awaitGlobalPort())
+            ?: return "ERR:BRIDGE_PORT_NOT_READY"
 
         val requestId = UUID.randomUUID().toString()
         val payload = JSONObject().apply {
@@ -228,13 +265,13 @@ object GeckoExtensionBridge {
         }
 
         val deferred = CompletableDeferred<JSONObject>()
-        channel.pending[requestId] = PendingCall(deferred)
+        pendingCalls[requestId] = PendingCall(deferred)
 
         return try {
             port.postMessage(payload)
             val reply = withTimeoutOrNull(COMMAND_TIMEOUT_MS) { deferred.await() }
                 ?: run {
-                    channel.pending.remove(requestId)
+                    pendingCalls.remove(requestId)
                     return "ERR:BRIDGE_TIMEOUT"
                 }
             if (reply.optBoolean("ok", false)) {
@@ -243,7 +280,7 @@ object GeckoExtensionBridge {
                 "ERR:${reply.optString("error", "unknown")}"
             }
         } catch (e: Throwable) {
-            channel.pending.remove(requestId)
+            pendingCalls.remove(requestId)
             "ERR:${e.message ?: e.javaClass.simpleName}"
         } finally {
             ext.let { /* keep reference alive for smart-cast clarity */ }
@@ -256,11 +293,33 @@ object GeckoExtensionBridge {
      * sent right after navigation. Poll briefly for the port instead of
      * failing immediately the first time it isn't there yet.
      */
+    private suspend fun awaitExtension(): WebExtension? {
+        extension?.let { return it }
+        val deadline = System.currentTimeMillis() + 5_000L
+        while (System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(100)
+            extension?.let { return it }
+        }
+        return extension
+    }
+
     private fun anyPort(): WebExtension.Port? {
+        globalPort?.let { return it }
         channels.values.forEach { channel ->
             channel.port?.let { return it }
         }
         return null
+    }
+
+    private suspend fun awaitGlobalPort(): WebExtension.Port? {
+        globalPort?.let { return it }
+        val deadline = System.currentTimeMillis() + PORT_READY_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(PORT_READY_POLL_MS)
+            globalPort?.let { return it }
+            anyPort()?.let { return it }
+        }
+        return globalPort
     }
 
     private suspend fun awaitPort(channel: SessionChannel): WebExtension.Port? {

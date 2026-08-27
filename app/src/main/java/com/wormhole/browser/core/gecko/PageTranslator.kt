@@ -101,7 +101,24 @@ object PageTranslator {
                     "apply_translations",
                     JSONObject().put("pairs", pairs),
                 )
-                if (!applied.startsWith("ERR:") && applied != GeckoJs.UNAVAILABLE_SENTINEL) {
+                if (!applied.startsWith("ERR:") && applied != GeckoJs.UNAVAILABLE_SENTINEL && !applied.startsWith("APPLIED:0")) {
+                    return Result.Applied(language.displayName, Mode.IN_PAGE)
+                }
+            }
+        }
+
+        val article = readReadableText(session).trim()
+        if (article.length >= 40) {
+            val chunks = article.chunked(900).take(8)
+            val translatedChunks = translateTexts(chunks, language.code)
+            if (translatedChunks != null && translatedChunks.size == chunks.size) {
+                val full = translatedChunks.joinToString("")
+                val applied = GeckoExtensionBridge.send(
+                    session,
+                    "apply_full_text",
+                    mapOf("text" to full.take(16000)),
+                )
+                if (applied.contains("APPLIED")) {
                     return Result.Applied(language.displayName, Mode.IN_PAGE)
                 }
             }
@@ -179,7 +196,10 @@ object PageTranslator {
     }
 
     private fun parseNodes(raw: String): List<TextNode> {
-        val json = raw.trim().let { text ->
+        val json = raw.trim()
+            .removeSurrounding("\"")
+            .replace("\\\"", "\"")
+            .let { text ->
             val start = text.indexOf('[')
             val end = text.lastIndexOf(']')
             if (start >= 0 && end > start) text.substring(start, end + 1) else text
