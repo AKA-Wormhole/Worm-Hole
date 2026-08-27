@@ -47,6 +47,7 @@ class GeckoSessionPool {
         // content script connects (happens automatically once the bundled
         // extension's content script loads on the first page).
         GeckoExtensionBridge.attach(session)
+        FirefoxPageTranslations.attach(session)
         val handle = Handle(session)
         sessions[tabId] = handle
         return handle
@@ -163,6 +164,7 @@ class GeckoSessionPool {
         sessions.remove(tabId)?.let { handle ->
             try {
                 GeckoExtensionBridge.detach(handle.session)
+                FirefoxPageTranslations.detach(handle.session)
                 handle.session.close()
             } catch (_: Throwable) {
             }

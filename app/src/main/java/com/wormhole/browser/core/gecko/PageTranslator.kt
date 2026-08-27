@@ -2,17 +2,11 @@ package com.wormhole.browser.core.gecko
 
 import com.wormhole.browser.core.ai.TranslateLanguage
 import com.wormhole.browser.core.ai.TranslateLanguages
-import com.wormhole.browser.core.translate.ArgosTranslateClient
-import com.wormhole.browser.core.translate.LingvaTranslateClient
 import org.mozilla.geckoview.GeckoSession
 
 /**
- * In-page translation without the native page-bridge port.
- *
- * The app only changes the page hash (`#wh-tl=hi`). The bundled content
- * script sees that hash, asks the extension background to translate the
- * visible text, and rewrites the same page. No Microsoft viewer, no
- * connectNative round-trip.
+ * Page translation the Firefox way: TranslationsController rewrites the
+ * current document in Gecko. No page-bridge port and no external viewer.
  */
 object PageTranslator {
 
@@ -29,17 +23,13 @@ object PageTranslator {
         data class Error(val message: String) : Result
     }
 
-    private val argos = ArgosTranslateClient(hosts = ArgosTranslateClient.ARGOS_HOSTS)
-    private val libre = ArgosTranslateClient(hosts = ArgosTranslateClient.LIBRETRANSLATE_HOSTS)
-    private val lingva = LingvaTranslateClient()
-
     suspend fun detectLanguage(session: GeckoSession): Detection? {
-        val sample = readReadableText(session).trim().take(400)
-        if (sample.isBlank()) return null
-        val detected = detectSample(sample) ?: return null
-        val code = detected.first.lowercase().substringBefore('-')
+        val code = FirefoxPageTranslations.detectedLanguage(session)
+            ?.lowercase()
+            ?.substringBefore('-')
+            ?: return null
         if (code == "und" || code == "en") return null
-        return Detection(code, TranslateLanguages.displayName(code), detected.second)
+        return Detection(code, TranslateLanguages.displayName(code), true)
     }
 
     suspend fun translatePage(
@@ -48,42 +38,42 @@ object PageTranslator {
         pageUrl: String = "",
         onOpenViewer: ((String) -> Unit)? = null,
     ): Result {
-        val url = pageUrl.trim()
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        if (!pageUrl.startsWith("http://") && !pageUrl.startsWith("https://")) {
             return Result.Error("Open a finished https page to translate.")
         }
-        val marked = translateMarkerUrl(url, language.code)
-        val lang = language.code.lowercase().substringBefore('-').ifBlank { "en" }
-        runCatching {
-            session.loadUri("javascript:void(location.hash='wh-tl=$lang." + System.currentTimeMillis() + "')")
+        val to = language.code.lowercase().substringBefore('-').ifBlank { "en" }
+        var from = FirefoxPageTranslations.detectedLanguage(session)
+            ?.lowercase()
+            ?.substringBefore('-')
+        if (from.isNullOrBlank() || from == "und") {
+            repeat(8) {
+                kotlinx.coroutines.delay(150)
+                from = FirefoxPageTranslations.detectedLanguage(session)
+                    ?.lowercase()
+                    ?.substringBefore('-')
+                if (!from.isNullOrBlank() && from != "und") return@repeat
+            }
         }
-        if (onOpenViewer != null) {
-            onOpenViewer(marked)
-        } else {
-            session.loadUri(marked)
+        if (from.isNullOrBlank() || from == "und") from = if (to == "en") "es" else "en"
+        if (from == to) {
+            return Result.Error("This page is already in ${language.displayName}.")
         }
-        kotlinx.coroutines.delay(2_400)
-        return Result.Applied(language.displayName, Mode.IN_PAGE)
+        return try {
+            FirefoxPageTranslations.translate(session, from!!, to)
+            Result.Applied(language.displayName, Mode.IN_PAGE)
+        } catch (e: Throwable) {
+            val detail = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+            Result.Error("Couldn't translate this page. $detail")
+        }
     }
 
     suspend fun restoreOriginal(session: GeckoSession, pageUrl: String = ""): Boolean {
         return try {
-            session.loadUri(restoreMarkerUrl(pageUrl))
+            FirefoxPageTranslations.restore(session)
             true
         } catch (_: Throwable) {
             false
         }
-    }
-
-    fun translateMarkerUrl(pageUrl: String, languageCode: String): String {
-        val base = pageUrl.substringBefore("#")
-        val lang = languageCode.lowercase().substringBefore('-').ifBlank { "en" }
-        return "$base#wh-tl=$lang.${System.currentTimeMillis()}"
-    }
-
-    fun restoreMarkerUrl(pageUrl: String = ""): String {
-        val base = pageUrl.substringBefore("#")
-        return if (base.startsWith("http")) "$base#wh-tl-restore" else "javascript:void(location.hash='wh-tl-restore')"
     }
 
     suspend fun readReadableText(session: GeckoSession): String {
@@ -93,12 +83,5 @@ object PageTranslator {
         )
         if (viaJs == GeckoJs.UNAVAILABLE_SENTINEL || viaJs.startsWith("ERR:")) return ""
         return viaJs.trim()
-    }
-
-    private suspend fun detectSample(sample: String): Pair<String, Boolean>? {
-        argos.detect(sample)?.let { return it.code to it.confident }
-        lingva.detect(sample)?.let { return it.code to it.confident }
-        libre.detect(sample)?.let { return it.code to it.confident }
-        return null
     }
 }
