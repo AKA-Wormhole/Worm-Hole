@@ -1111,33 +1111,47 @@ fun BrowserScreen(
                         val session = tab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
                         translateBusy = true
                         coroutineScope.launch {
-                            when (
-                                val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
-                                    session = session,
-                                    language = translateTarget,
-                                    pageUrl = tab.url,
-                                    onOpenViewer = { viewer ->
-                                        viewModel.updateTabUrl(tab.id, viewer)
-                                        geckoSessionPool.requestLoad(tab.id, viewer)
-                                    },
-                                )
-                            ) {
-                                is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
-                                    pageTranslated = true
-                                    translateMode = result.mode
+                            try {
+                                when (
+                                    val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
+                                        session = session,
+                                        language = translateTarget,
+                                        pageUrl = tab.url,
+                                        onOpenViewer = { viewer ->
+                                            viewModel.updateTabUrl(tab.id, viewer)
+                                            geckoSessionPool.requestLoad(tab.id, viewer)
+                                        },
+                                    )
+                                ) {
+                                    is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
+                                        pageTranslated = true
+                                        translateMode = result.mode
+                                    }
+                                    is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
+                                        android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
+                                    }
                                 }
-                                is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
-                                    android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
-                                }
+                            } catch (e: Throwable) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    e.message ?: "Translation failed",
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                            } finally {
+                                translateBusy = false
                             }
-                            translateBusy = false
                         }
                     },
                     onShowOriginal = {
                         val session = activeTab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
                         coroutineScope.launch {
-                            val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
-                            if (restored) pageTranslated = false
+                            if (translateMode == com.wormhole.browser.core.gecko.PageTranslator.Mode.VIEWER) {
+                                session.goBack()
+                                pageTranslated = false
+                            } else {
+                                val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
+                                if (restored) pageTranslated = false
+                            }
                         }
                     },
                     onPickLanguage = {
@@ -1217,26 +1231,35 @@ fun BrowserScreen(
                                 )
                                 translateBusy = true
                                 coroutineScope.launch {
-                                    when (
-                                        val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
-                                            session = session,
-                                            language = language,
-                                            pageUrl = tab.url,
-                                            onOpenViewer = { viewer ->
-                                                viewModel.updateTabUrl(tab.id, viewer)
-                                                geckoSessionPool.requestLoad(tab.id, viewer)
-                                            },
-                                        )
-                                    ) {
-                                        is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
-                                            pageTranslated = true
-                                            translateMode = result.mode
+                                    try {
+                                        when (
+                                            val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
+                                                session = session,
+                                                language = language,
+                                                pageUrl = tab.url,
+                                                onOpenViewer = { viewer ->
+                                                    viewModel.updateTabUrl(tab.id, viewer)
+                                                    geckoSessionPool.requestLoad(tab.id, viewer)
+                                                },
+                                            )
+                                        ) {
+                                            is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
+                                                pageTranslated = true
+                                                translateMode = result.mode
+                                            }
+                                            is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
+                                                android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
+                                            }
                                         }
-                                        is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
-                                            android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
-                                        }
+                                    } catch (e: Throwable) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            e.message ?: "Translation failed",
+                                            android.widget.Toast.LENGTH_LONG,
+                                        ).show()
+                                    } finally {
+                                        translateBusy = false
                                     }
-                                    translateBusy = false
                                 }
                             }
                         },

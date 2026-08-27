@@ -20,7 +20,7 @@ object PageTranslator {
         val confident: Boolean,
     )
 
-    enum class Mode { IN_PAGE }
+    enum class Mode { IN_PAGE, VIEWER }
 
     sealed interface Result {
         data class Applied(val language: String, val mode: Mode) : Result
@@ -64,12 +64,10 @@ object PageTranslator {
         pageUrl: String = "",
         onOpenViewer: ((String) -> Unit)? = null,
     ): Result {
-        var raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "360"))
-        var readAttempts = 1
-        while ((raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) && readAttempts < 6) {
-            kotlinx.coroutines.delay(400L * readAttempts)
-            raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "360"))
-            readAttempts++
+        var raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "80"))
+        if (raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) {
+            kotlinx.coroutines.delay(350)
+            raw = GeckoExtensionBridge.send(session, "collect_text_nodes", mapOf("limit" to "80"))
         }
 
         val nodes = if (raw == GeckoJs.UNAVAILABLE_SENTINEL || raw.startsWith("ERR:")) {
@@ -86,7 +84,7 @@ object PageTranslator {
         }
 
         if (unique.isNotEmpty()) {
-            val sources = unique.keys.toList()
+            val sources = unique.keys.sortedByDescending { it.length }.take(40)
             val translated = translateTexts(sources, language.code)
             if (translated != null && translated.size == sources.size) {
                 val pairs = JSONArray()
@@ -124,16 +122,28 @@ object PageTranslator {
             }
         }
 
+        val viewer = viewerUrl(pageUrl, language.code)
+        if (viewer != null && onOpenViewer != null) {
+            onOpenViewer(viewer)
+            return Result.Applied(language.displayName, Mode.VIEWER)
+        }
+
         val reason = raw.removePrefix("ERR:")
         val message = when {
-            raw == GeckoJs.UNAVAILABLE_SENTINEL ->
-                "Translation isn't ready yet on this page. Try again in a moment."
-            reason == "BRIDGE_PORT_NOT_READY" ->
-                "Translation isn't ready yet on this page. Try again in a moment."
+            raw == GeckoJs.UNAVAILABLE_SENTINEL || reason == "BRIDGE_PORT_NOT_READY" ->
+                "Couldn't reach this page. Open a finished https page and try again."
             unique.isEmpty() -> "There's no page content to translate yet."
-            else -> "Translation could not rewrite this page. Try again."
+            else -> "Couldn't rewrite this page. Check your connection and try again."
         }
         return Result.Error(message)
+    }
+
+    private fun viewerUrl(pageUrl: String, targetCode: String): String? {
+        val url = pageUrl.trim()
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return null
+        val target = targetCode.lowercase().substringBefore('-').ifBlank { "en" }
+        val encoded = java.net.URLEncoder.encode(url, java.nio.charset.StandardCharsets.UTF_8)
+        return "https://www.translatetheweb.com/?from=&to=$target&a=$encoded"
     }
 
     private suspend fun detectSample(sample: String): Pair<String, Boolean>? {
