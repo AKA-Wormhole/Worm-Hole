@@ -274,10 +274,11 @@ fun NewTabSurface(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 18.dp),
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(11.dp),
                 ) {
+                    SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(22.dp))
                     Text(
                         "Search ${searchEngine.displayName} or type a URL",
                         style = MaterialTheme.typography.bodyLarge,
