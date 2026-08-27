@@ -226,6 +226,8 @@ fun BrowserScreen(
     }
     var translateBusy by remember { mutableStateOf(false) }
     var pageTranslated by remember { mutableStateOf(false) }
+    var translateMode by remember { mutableStateOf(com.wormhole.browser.core.gecko.PageTranslator.Mode.IN_PAGE) }
+    var trendingSearches by remember { mutableStateOf<List<String>>(emptyList()) }
     val dismissedTranslateHosts = remember { mutableSetOf<String>() }
     var isAssistantSheetOpen by remember { mutableStateOf(false) }
 
@@ -366,6 +368,10 @@ fun BrowserScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        trendingSearches = com.wormhole.browser.core.search.TrendingSearchesClient.load()
+    }
+
     LaunchedEffect(dynamicBackgroundEnabled) {
         if (dynamicBackgroundEnabled) {
             val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -472,6 +478,7 @@ fun BrowserScreen(
                 translateOffer = null
                 pageTranslated = false
                 translateBusy = false
+                translateMode = com.wormhole.browser.core.gecko.PageTranslator.Mode.IN_PAGE
             }
             return@LaunchedEffect
         }
@@ -612,13 +619,6 @@ fun BrowserScreen(
         dynamicToolbar.syncTranslation(toolbarOffsetPx)
         val next = dynamicToolbar.onScrollDelta(scrollDeltaY, scrollY)
         if (dynamicToolbar.lastIgnored) return
-
-        if (scrollDeltaY < 0) {
-            // Scroll up: one committed slide-in. Do not 1:1 track bounce.
-            animateToolbarTo(0f)
-            return
-        }
-
         cancelToolbarSettle()
         toolbarOffsetPx = next
     }
@@ -702,21 +702,24 @@ fun BrowserScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(with(density) { topInsetPx.toDp() })
-                .background(Color(0xFF2C2C2C))
-                .zIndex(30f),
-        )
+        val showStatusBarStrip = activeTab?.url?.isNotBlank() == true
+        if (showStatusBarStrip) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(with(density) { topInsetPx.toDp() })
+                    .background(MaterialTheme.colorScheme.background)
+                    .zIndex(30f),
+            )
+        }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
                     if (aiWorking) {
-                        Modifier.border(2.dp, Color.White)
+                        Modifier.border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                     } else Modifier
                 ),
         ) {
@@ -765,6 +768,7 @@ fun BrowserScreen(
                             LoadErrorOverlay(
                                 failure = activeError,
                                 fallbackUrl = activeTab.url,
+                                modifier = Modifier.padding(bottom = bottomBarHeight),
                                 onRetry = {
                                     val retryUrl = activeError.url.ifBlank { activeTab.url }
                                     tabLoadErrors.remove(activeTab.id)
@@ -820,6 +824,7 @@ fun BrowserScreen(
                             },
                             onShortcutRemove = { shortcut -> viewModel.removeShortcut(shortcut.url) },
                             onAddShortcut = { title, url -> viewModel.addShortcut(title, url) },
+                            trendingSearches = trendingSearches,
                             onTrendingSearch = { term ->
                                 val tab = activeTab ?: viewModel.newTab(spaceId = uiState.activeSpaceId)
                                 val resolved = viewModel.resolveInput(term)
@@ -1102,19 +1107,24 @@ fun BrowserScreen(
                     translated = pageTranslated,
                     busy = translateBusy,
                     onTranslate = {
-                        val session = activeTab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
+                        val tab = activeTab
+                        val session = tab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
                         translateBusy = true
                         coroutineScope.launch {
                             when (
                                 val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
                                     session = session,
-                                    apiKey = geminiApiKey,
                                     language = translateTarget,
-                                    gemini = com.wormhole.browser.core.ai.GeminiClient(),
+                                    pageUrl = tab.url,
+                                    onOpenViewer = { viewer ->
+                                        viewModel.updateTabUrl(tab.id, viewer)
+                                        geckoSessionPool.requestLoad(tab.id, viewer)
+                                    },
                                 )
                             ) {
                                 is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
                                     pageTranslated = true
+                                    translateMode = result.mode
                                 }
                                 is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
                                     android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
@@ -1126,8 +1136,13 @@ fun BrowserScreen(
                     onShowOriginal = {
                         val session = activeTab?.id?.let { geckoSessionPool.get(it) } ?: return@TranslateBar
                         coroutineScope.launch {
-                            val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
-                            if (restored) pageTranslated = false
+                            if (translateMode == com.wormhole.browser.core.gecko.PageTranslator.Mode.GOOGLE_VIEWER) {
+                                session.goBack()
+                                pageTranslated = false
+                            } else {
+                                val restored = com.wormhole.browser.core.gecko.PageTranslator.restoreOriginal(session)
+                                if (restored) pageTranslated = false
+                            }
                         }
                     },
                     onPickLanguage = {
@@ -1168,6 +1183,7 @@ fun BrowserScreen(
                     },
                     onAddShortcut = { title, url -> viewModel.addShortcut(title, url) },
                     hasStoredRecentSearches = hasStoredRecentSearches,
+                    trendingSearches = trendingSearches,
                     onSubmit = { input ->
                         if (input.isBlank()) return@CommandBar
                         when (commandBarMode) {
@@ -1196,7 +1212,7 @@ fun BrowserScreen(
                             translateTarget = language
                             val tab = activeTab
                             val session = tab?.id?.let { geckoSessionPool.get(it) }
-                            if (session == null) {
+                            if (tab == null || session == null) {
                                 android.widget.Toast.makeText(context, "Open a page to translate", android.widget.Toast.LENGTH_SHORT).show()
                             } else {
                                 translateOffer = translateOffer ?: com.wormhole.browser.core.gecko.PageTranslator.Detection(
@@ -1209,13 +1225,17 @@ fun BrowserScreen(
                                     when (
                                         val result = com.wormhole.browser.core.gecko.PageTranslator.translatePage(
                                             session = session,
-                                            apiKey = geminiApiKey,
                                             language = language,
-                                            gemini = com.wormhole.browser.core.ai.GeminiClient(),
+                                            pageUrl = tab.url,
+                                            onOpenViewer = { viewer ->
+                                                viewModel.updateTabUrl(tab.id, viewer)
+                                                geckoSessionPool.requestLoad(tab.id, viewer)
+                                            },
                                         )
                                     ) {
                                         is com.wormhole.browser.core.gecko.PageTranslator.Result.Applied -> {
                                             pageTranslated = true
+                                            translateMode = result.mode
                                         }
                                         is com.wormhole.browser.core.gecko.PageTranslator.Result.Error -> {
                                             android.widget.Toast.makeText(context, result.message, android.widget.Toast.LENGTH_LONG).show()
@@ -1403,10 +1423,7 @@ fun BrowserScreen(
                         isAssistantSheetOpen = true
                         viewModel.setAssistantLoading()
                         coroutineScope.launch {
-                            val pageText = com.wormhole.browser.core.gecko.GeckoJs.evaluate(
-                                session,
-                                "(function(){try{return (document.body&&document.body.innerText)||'';}catch(e){return ''}})()",
-                            )
+                            val pageText = com.wormhole.browser.core.gecko.PageTranslator.readReadableText(session)
                             viewModel.summarizePage(pageText)
                         }
                     }
@@ -2333,10 +2350,11 @@ private fun LoadErrorOverlay(
     failure: com.wormhole.browser.core.gecko.PageLoadFailure,
     fallbackUrl: String,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val shownUrl = failure.url.ifBlank { fallbackUrl }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
@@ -2344,8 +2362,7 @@ private fun LoadErrorOverlay(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 32.dp)
-                .offset(y = (-56).dp),
+                .padding(horizontal = 32.dp),
         ) {
             Icon(
                 Icons.Default.Refresh,
@@ -2376,21 +2393,20 @@ private fun LoadErrorOverlay(
                     maxLines = 3,
                 )
             }
-        }
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = com.wormhole.browser.ui.theme.WormHoleSurface.Fill,
-            border = com.wormhole.browser.ui.theme.WormHoleSurface.border(),
-            modifier = Modifier
-                .align(Alignment.Center)
-                .bouncyClickable(onClick = onRetry),
-        ) {
-            Text(
-                text = "Retry",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
-            )
+            Spacer(modifier = Modifier.height(28.dp))
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = com.wormhole.browser.ui.theme.WormHoleSurface.Fill,
+                border = com.wormhole.browser.ui.theme.WormHoleSurface.border(),
+                modifier = Modifier.bouncyClickable(onClick = onRetry),
+            ) {
+                Text(
+                    text = "Retry",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
+                )
+            }
         }
     }
 }

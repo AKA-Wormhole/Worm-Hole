@@ -15,8 +15,8 @@ object WormHoleMotion {
 
     /** Bottom bar / sheet slide. Critically damped — bounce reads as flicker. */
     fun <T> chrome() = spring<T>(
-        dampingRatio = 0.96f,
-        stiffness = 260f,
+        dampingRatio = 0.92f,
+        stiffness = 420f,
     )
 
     fun <T> fluid() = spring<T>(

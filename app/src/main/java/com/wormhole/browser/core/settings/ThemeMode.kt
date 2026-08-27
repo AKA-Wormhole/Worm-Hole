@@ -6,7 +6,7 @@ enum class ThemeMode(val id: String, val displayName: String) {
     DARK(id = "dark", displayName = "Dark");
 
     companion object {
-        val DEFAULT = SYSTEM
+        val DEFAULT = DARK
 
         fun fromId(id: String?): ThemeMode =
             entries.firstOrNull { it.id == id } ?: DEFAULT

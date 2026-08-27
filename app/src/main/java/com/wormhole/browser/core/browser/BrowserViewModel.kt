@@ -349,8 +349,24 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun summarizePage(pageText: String) {
-        if (pageText.isBlank()) {
-            _assistantState.value = AiRequestState.Error("There's no page content to summarize yet.")
+        val cleaned = pageText.trim()
+            .removePrefix("ERR:")
+            .takeIf { text ->
+                text.isNotBlank() &&
+                    !text.startsWith("JS_EVAL_UNAVAILABLE") &&
+                    text != com.wormhole.browser.core.gecko.GeckoJs.UNAVAILABLE_SENTINEL
+            }
+            .orEmpty()
+        if (cleaned.isBlank()) {
+            _assistantState.value = AiRequestState.Error(
+                "Couldn't read this page yet. Open a finished article and try Summary again.",
+            )
+            return
+        }
+        if (geminiApiKey.value.isBlank()) {
+            _assistantState.value = AiRequestState.Error(
+                "Add a Gemini API key in Settings to summarize pages.",
+            )
             return
         }
         _assistantState.value = AiRequestState.Loading
@@ -368,7 +384,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 - Do not describe the page's UI, layout, or navigation elements.
 
                 PAGE CONTENT:
-                $pageText
+                ${cleaned.take(12000)}
             """.trimIndent()
             _assistantState.value = geminiClient.generateText(geminiApiKey.value, prompt).toRequestState()
         }

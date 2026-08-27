@@ -17,11 +17,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.DisposableEffect
@@ -65,7 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalDensity
+
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -144,6 +142,7 @@ fun NewTabSurface(
     onAddShortcut: (title: String, url: String) -> Unit,
 
     onTrendingSearch: (String) -> Unit,
+    trendingSearches: List<String> = emptyList(),
 
     onAskWormHoleClick: () -> Unit,
 
@@ -197,15 +196,6 @@ fun NewTabSurface(
         }
     }
 
-    // Real status bar height (even though it's hidden here, the layout still
-    // reserves the same top gap so the header doesn't jump when the bar is
-    // swiped in, and so this matches every other screen's spacing instead of
-    // a guessed constant).
-    val density = LocalDensity.current
-    val statusBarHeight = with(density) {
-        WindowInsets.statusBars.getTop(density).toDp()
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -234,7 +224,8 @@ fun NewTabSurface(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = statusBarHeight + 16.dp),
+                    .statusBarsPadding()
+                    .padding(top = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -323,10 +314,12 @@ fun NewTabSurface(
 
             Spacer(Modifier.height(20.dp))
 
-            TrendingCard(
-                terms = TrendingSearchTerms.take(5),
-                onTermClick = onTrendingSearch,
-            )
+            if (trendingSearches.isNotEmpty()) {
+                TrendingCard(
+                    terms = trendingSearches.take(5),
+                    onTermClick = onTrendingSearch,
+                )
+            }
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = history.isNotEmpty(),
@@ -567,17 +560,6 @@ private fun HistoryCard(
         }
     }
 }
-
-private val TrendingSearchTerms = listOf(
-    "Today's news",
-    "Weather",
-    "NBA scores",
-    "Stock market",
-    "Movies playing now",
-    "Recipes",
-    "Technology news",
-    "Sports",
-)
 
 @Composable
 private fun ShortcutGlyph(shortcut: ShortcutEntry, modifier: Modifier = Modifier) {

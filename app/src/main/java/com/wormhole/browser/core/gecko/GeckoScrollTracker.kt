@@ -16,8 +16,8 @@ class GeckoScrollTracker(
     private val session: GeckoSession,
     private val onScroll: (deltaY: Int, scrollY: Int, isScrollable: Boolean) -> Unit,
     private val onScrollSettled: () -> Unit = {},
-    private val intervalMs: Long = 80L,
-    private val settleMs: Long = 240L,
+    private val intervalMs: Long = 32L,
+    private val settleMs: Long = 160L,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private var lastY = 0
@@ -120,7 +120,7 @@ class GeckoScrollTracker(
         val delta = y - lastY
         lastY = y
         if (fromCompositor) lastCompositorAt = SystemClock.uptimeMillis()
-        if (abs(delta) < 2) return
+        if (abs(delta) < 1) return
         onScroll(delta, y.coerceAtLeast(0), true)
         scheduleSettle()
     }

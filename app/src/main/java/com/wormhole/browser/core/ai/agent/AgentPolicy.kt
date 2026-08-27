@@ -15,8 +15,9 @@ object AgentPolicy {
     // ...) that BrowserAgent never actually registers, so it silently gated
     // nothing real except clear_history and execute_js.
     fun requiresConfirmation(toolName: String): Boolean = toolName in setOf(
-        "type_text", "tap", "edit_page", "execute_js",
         "clear_history",
+        "clear_all_data",
+        "close_all_tabs",
     )
 
     fun isAllowedTool(toolName: String): Boolean =

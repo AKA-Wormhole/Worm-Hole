@@ -9,10 +9,10 @@ import kotlin.math.abs
  * bar cannot immediately snap it shut again.
  */
 class DynamicToolbarController(
-    private val snapThresholdFraction: Float = 0.42f,
-    private val minScrollDelta: Int = 2,
-    private val noiseDelta: Int = 12,
-    private val commitTravel: Float = 32f,
+    private val snapThresholdFraction: Float = 0.38f,
+    private val minScrollDelta: Int = 1,
+    private val noiseDelta: Int = 10,
+    private val commitTravel: Float = 24f,
 ) {
     var translationY: Float = 0f
         private set

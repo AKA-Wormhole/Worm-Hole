@@ -99,31 +99,6 @@ import kotlinx.coroutines.launch
 
 enum class CommandBarMode { SEARCH, AI }
 
-private val DefaultRecentSearches = listOf(
-    "Wormhole AI",
-    "Space exploration news",
-    "Android 16 features",
-    "Minimal desk setup",
-    "Best cafes in London",
-)
-
-private val DefaultTrendingSearches = listOf(
-    "iPhone 16 Pro",
-    "Tesla Model 3 2024",
-    "OpenAI GPT-5",
-    "India vs Sri Lanka highlights",
-    "WWDC 2024",
-    "SpaceX Starship launch",
-)
-
-private val DefaultQuickAccess = listOf(
-    ShortcutEntry("Google", "https://www.google.com/", 0L),
-    ShortcutEntry("YouTube", "https://www.youtube.com/", 0L),
-    ShortcutEntry("Reddit", "https://www.reddit.com/", 0L),
-    ShortcutEntry("X", "https://x.com/", 0L),
-    ShortcutEntry("Wikipedia", "https://www.wikipedia.org/", 0L),
-)
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CommandBar(
@@ -145,6 +120,7 @@ fun CommandBar(
     onShortcutClick: (ShortcutEntry) -> Unit = {},
     onAddShortcut: (title: String, url: String) -> Unit = { _, _ -> },
     hasStoredRecentSearches: Boolean = false,
+    trendingSearches: List<String> = emptyList(),
 ) {
     var showAddShortcut by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -215,17 +191,13 @@ fun CommandBar(
                         IdleCommandBody(
                             mode = mode,
                             onModeChange = onModeChange,
-                            recentSearches = when {
-                                recentSearches.isNotEmpty() -> recentSearches
-                                hasStoredRecentSearches -> emptyList()
-                                else -> DefaultRecentSearches
-                            },
+                            recentSearches = recentSearches,
                             onRecentClick = onSubmit,
                             onFillQuery = onFillQuery,
                             onClearRecentSearches = onClearRecentSearches,
-                            trending = DefaultTrendingSearches,
+                            trending = trendingSearches,
                             onTrendingClick = onSubmit,
-                            shortcuts = shortcuts.ifEmpty { DefaultQuickAccess },
+                            shortcuts = shortcuts,
                             onShortcutClick = onShortcutClick,
                             onAddShortcut = { showAddShortcut = true },
                         )
@@ -426,7 +398,7 @@ private fun IdleCommandBody(
             recentSearches.take(6).forEachIndexed { index, term ->
                 if (index > 0) {
                     HorizontalDivider(
-                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
@@ -438,22 +410,24 @@ private fun IdleCommandBody(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
-        SectionHeader(title = "Trending searches")
-        FlowRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            maxItemsInEachRow = 2,
-        ) {
-            trending.forEach { term ->
-                TrendingChip(
-                    term = term,
-                    onClick = { onTrendingClick(term) },
-                    modifier = Modifier.fillMaxWidth(0.48f),
-                )
+        if (trending.isNotEmpty()) {
+            Spacer(Modifier.height(18.dp))
+            SectionHeader(title = "Trending searches")
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                maxItemsInEachRow = 2,
+            ) {
+                trending.forEach { term ->
+                    TrendingChip(
+                        term = term,
+                        onClick = { onTrendingClick(term) },
+                        modifier = Modifier.fillMaxWidth(0.48f),
+                    )
+                }
             }
         }
 

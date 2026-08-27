@@ -35,7 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.AddComment
@@ -68,7 +68,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.wormhole.browser.R
 import com.wormhole.browser.core.ai.ChatHistoryRepository
-import com.wormhole.browser.core.ai.GeminiClient
 import com.wormhole.browser.core.ai.agent.AgentAction
 import com.wormhole.browser.core.ai.agent.AgentObservation
 import com.wormhole.browser.core.ai.agent.IdentifiedObservation
@@ -98,7 +97,6 @@ fun AiSheet(
     val context = LocalContext.current
     val repository = remember { ChatHistoryRepository(context) }
     val scope = rememberCoroutineScope()
-    val client = remember { GeminiClient() }
     val agent = remember(viewModel, geckoSessionPool) { BrowserAgent(viewModel, geckoSessionPool) }
 
     var conversationId by remember { mutableStateOf<Long?>(null) }
@@ -172,6 +170,13 @@ fun AiSheet(
         deferred.await()
     }
 
+    LaunchedEffect(messages.size, actions.size, working) {
+        val last = messages.size + actions.size + if (working) 1 else 0
+        if (last > 0) {
+            runCatching { listState.animateScrollToItem(last - 1) }
+        }
+    }
+
     LaunchedEffect(conversationId) {
         val id = conversationId
         if (id == null) {
@@ -241,8 +246,11 @@ fun AiSheet(
                 } catch (e: Throwable) {
                     AgentRunResult("Something went wrong: ${e.message ?: "unknown error"}")
                 }
-                if (result.answer.isNotBlank()) {
-                    repository.addMessage(id, "assistant", result.answer)
+                val reply = result.answer.ifBlank {
+                    if (actions.isNotEmpty()) "Done." else ""
+                }
+                if (reply.isNotBlank()) {
+                    repository.addMessage(id, "assistant", reply)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -476,26 +484,40 @@ fun AiSheet(
                     ) {
                         Icon(Icons.Default.Mic, "Voice input", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                     }
+                    val canSend = working || input.isNotBlank()
+                    val actionBg = if (working) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    }
+                    val actionFg = if (working) {
+                        MaterialTheme.colorScheme.surface
+                    } else {
+                        MaterialTheme.colorScheme.onPrimary
+                    }
                     Box(
                         modifier = Modifier
-                            .padding(start = 2.dp)
-                            .size(36.dp)
+                            .padding(start = 4.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(actionBg)
                             .then(
-                                if (working || input.isNotBlank()) {
-                                    Modifier.bouncyClickable(contentDescription = if (working) "Stop" else "Send", onClick = { send() })
+                                if (canSend) {
+                                    Modifier.bouncyClickable(
+                                        contentDescription = if (working) "Stop" else "Send",
+                                        onClick = { send() },
+                                    )
                                 } else {
-                                    Modifier.alpha(0.4f)
+                                    Modifier.alpha(0.38f)
                                 },
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            if (working) Icons.Default.GraphicEq else Icons.AutoMirrored.Filled.Send,
-                            if (working) "Stop" else "Send",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            imageVector = if (working) Icons.Filled.Stop else Icons.AutoMirrored.Filled.Send,
+                            contentDescription = if (working) "Stop" else "Send",
+                            modifier = Modifier.size(if (working) 18.dp else 20.dp),
+                            tint = actionFg,
                         )
                     }
                 }

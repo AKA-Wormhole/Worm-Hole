@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Wallpaper
@@ -131,7 +130,7 @@ fun SettingsScreen(
                         subtitle = when (mode) {
                             ThemeMode.SYSTEM -> "Follow the phone light/dark setting"
                             ThemeMode.LIGHT -> "Light chrome, sheets, and menus"
-                            ThemeMode.DARK -> "Dark chrome, sheets, and menus"
+                            ThemeMode.DARK -> "Dark chrome, sheets, and menus (default)"
                         },
                         isSelected = mode == themeMode,
                         onClick = { onThemeModeSelected(mode) },
