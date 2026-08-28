@@ -368,7 +368,6 @@ fun NewTabSurface(
                         modifier = Modifier.weight(1f),
                     )
                     VoiceMicButton(onResult = onVoiceSearch, tint = muted, iconSize = 18.dp)
-                    )
                 }
             }
             Box(
