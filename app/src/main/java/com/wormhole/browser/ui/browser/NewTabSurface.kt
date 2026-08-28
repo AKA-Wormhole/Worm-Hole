@@ -283,21 +283,44 @@ fun NewTabSurface(
             }
             Spacer(Modifier.height(10.dp))
 
-            androidx.compose.foundation.layout.FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-                maxItemsInEachRow = 4,
-            ) {
-                shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE).forEach { shortcut ->
-                    ShortcutTile(
-                        shortcut = shortcut,
-                        onClick = { onShortcutClick(shortcut) },
-                        onRemove = { onShortcutRemove(shortcut) },
-                    )
-                }
-                if (shortcuts.size < com.wormhole.browser.core.library.ShortcutCatalog.MAX) {
-                    AddShortcutTile(onClick = { showAddDialog = true })
+            run {
+                val visibleShortcuts = shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE)
+                val showAdd = shortcuts.size < com.wormhole.browser.core.library.ShortcutCatalog.MAX
+                val totalCells = visibleShortcuts.size + if (showAdd) 1 else 0
+                val columns = 4
+                val rows = (totalCells + columns - 1) / columns
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    for (rowIndex in 0 until rows) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
+                        ) {
+                            for (colIndex in 0 until columns) {
+                                val cellIndex = rowIndex * columns + colIndex
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.TopCenter,
+                                ) {
+                                    when {
+                                        cellIndex < visibleShortcuts.size -> {
+                                            val shortcut = visibleShortcuts[cellIndex]
+                                            ShortcutTile(
+                                                shortcut = shortcut,
+                                                onClick = { onShortcutClick(shortcut) },
+                                                onRemove = { onShortcutRemove(shortcut) },
+                                            )
+                                        }
+                                        showAdd && cellIndex == visibleShortcuts.size -> {
+                                            AddShortcutTile(onClick = { showAddDialog = true })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
