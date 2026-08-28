@@ -285,8 +285,8 @@ fun NewTabSurface(
 
             androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
                 maxItemsInEachRow = 4,
             ) {
                 shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE).forEach { shortcut ->
@@ -814,11 +814,11 @@ private fun ShortcutTile(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(68.dp),
+        modifier = modifier.width(61.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(58.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .combinedClickable(
@@ -866,11 +866,11 @@ private fun ShortcutTile(
 private fun AddShortcutTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(68.dp),
+        modifier = modifier.width(61.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(58.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .bouncyClickable(onClick = onClick),
