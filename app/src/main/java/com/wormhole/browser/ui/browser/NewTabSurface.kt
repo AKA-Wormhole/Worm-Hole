@@ -858,7 +858,7 @@ private fun AddShortcutDialog(
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    placeholder = { Text("https://example.com") },
+                    placeholder = { Text("chatgpt.com") },
                     singleLine = true,
                     isError = url.isNotBlank() && !valid,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),

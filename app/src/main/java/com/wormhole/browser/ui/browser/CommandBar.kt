@@ -870,7 +870,7 @@ private fun AddQuickAccessDialog(
             OutlinedTextField(
                 value = raw,
                 onValueChange = { raw = it },
-                placeholder = { Text("example.com") },
+                placeholder = { Text("chatgpt.com") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(

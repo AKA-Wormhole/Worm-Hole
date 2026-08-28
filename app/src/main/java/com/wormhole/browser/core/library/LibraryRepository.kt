@@ -38,30 +38,33 @@ object ShortcutCatalog {
         ShortcutEntry("GitHub", "https://github.com/", 7L),
     )
 
-    fun isRealUrl(input: String): Boolean {
+    private val domain = Regex(
+        "^(localhost|([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,})$",
+    )
+
+    fun isRealUrl(input: String): Boolean = hostOf(input) != null
+
+    fun hostOf(input: String): String? {
         val trimmed = input.trim()
-        if (trimmed.isBlank() || " " in trimmed) return false
-        val withScheme = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            trimmed
-        } else {
-            "https://$trimmed"
-        }
-        return runCatching {
-            val uri = java.net.URI(withScheme)
-            val host = uri.host?.removePrefix("www.")?.lowercase().orEmpty()
-            val scheme = uri.scheme?.lowercase()
-            (scheme == "http" || scheme == "https") &&
-                host.isNotBlank() &&
-                (host.contains('.') || host == "localhost") &&
-                !host.startsWith(".") &&
-                !host.endsWith(".")
-        }.getOrDefault(false)
+        if (trimmed.isBlank() || " " in trimmed) return null
+        val withoutScheme = trimmed
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .removePrefix("HTTPS://")
+            .removePrefix("HTTP://")
+        val host = withoutScheme.substringBefore('/').substringBefore('?').substringBefore('#')
+            .substringBefore(':')
+            .removePrefix("www.")
+            .lowercase()
+        if (host == "localhost" || domain.matches(host)) return host
+        return null
     }
 
     fun normalizeUrl(input: String): String {
         val trimmed = input.trim()
-        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
-        else "https://$trimmed"
+        return if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) trimmed else "https://$trimmed"
     }
 }
 
