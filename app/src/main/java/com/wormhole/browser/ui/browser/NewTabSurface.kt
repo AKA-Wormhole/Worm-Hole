@@ -61,6 +61,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -607,7 +608,7 @@ private fun ContinueBrowsingCard(
     val favicon = FaviconCache.get(entry.url)
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = if (homeIsDark()) Color(0xFF141414) else Color.White,
+        color = if (homeIsDark()) Color(0xFF243044) else Color.White,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (homeIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
@@ -617,7 +618,7 @@ private fun ContinueBrowsingCard(
             .bouncyClickable(onClick = onOpen),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -644,18 +645,23 @@ private fun ContinueBrowsingCard(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text("Continue browsing", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Continue browsing",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (homeIsDark()) Color.White.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     entry.title.ifBlank { entry.url },
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = if (homeIsDark()) Color.White else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     entry.url,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (homeIsDark()) Color.White.copy(alpha = 0.62f) else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -679,8 +685,10 @@ private fun ShortcutGlyph(shortcut: ShortcutEntry, modifier: Modifier = Modifier
         favicon != null -> androidx.compose.foundation.Image(
             bitmap = favicon.asImageBitmap(),
             contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-            modifier = modifier.size(30.dp),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = modifier
+                .size(40.dp)
+                .clip(CircleShape),
         )
         "google" in host -> GoogleGGlyph(modifier = modifier.size(24.dp))
         "youtube" in host -> Icon(
@@ -758,11 +766,11 @@ private fun ShortcutTile(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(58.dp),
+        modifier = modifier.width(76.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(68.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .combinedClickable(
@@ -808,11 +816,11 @@ private fun ShortcutTile(
 private fun AddShortcutTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(58.dp),
+        modifier = modifier.width(76.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(68.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .bouncyClickable(onClick = onClick),

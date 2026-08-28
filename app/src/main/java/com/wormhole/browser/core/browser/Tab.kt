@@ -18,6 +18,8 @@ data class Tab(
 
     val isIncognito: Boolean = false,
     val isPinned: Boolean = false,
+    val groupId: String? = null,
+    val groupName: String? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
 
     val isBlankTab: Boolean = true,

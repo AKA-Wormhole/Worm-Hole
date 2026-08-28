@@ -66,6 +66,8 @@ interface EngineCallbacks {
     }
 
     fun onNewWindowRequested(tabId: String, url: String): String? = null
+
+    fun onSiteContextMenu(tabId: String, url: String, title: String) {}
 }
 
 /** @deprecated Use EngineCallbacks */

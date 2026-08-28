@@ -166,6 +166,21 @@ fun WormHoleGeckoViewHost(
             override fun onFirstContentfulPaint(session: GeckoSession) {
                 painted.value = true
             }
+
+            override fun onContextMenu(
+                session: GeckoSession,
+                screenX: Int,
+                screenY: Int,
+                element: GeckoSession.ContentDelegate.ContextElement,
+            ) {
+                val url = element.linkUri ?: element.srcUri ?: return
+                if (url.isBlank()) return
+                latestCallbacks.onSiteContextMenu(
+                    tab.id,
+                    url,
+                    element.title?.takeIf { it.isNotBlank() } ?: url,
+                )
+            }
         }
 
         session.navigationDelegate = object : GeckoSession.NavigationDelegate {

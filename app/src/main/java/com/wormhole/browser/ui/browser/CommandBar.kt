@@ -424,19 +424,12 @@ private fun IdleCommandBody(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
     ) {
-        SectionHeader(
+        if (recentSearches.isNotEmpty()) SectionHeader(
             title = "Recent searches",
             action = "Clear all",
             onAction = onClearRecentSearches,
         )
-        if (recentSearches.isEmpty()) {
-            Text(
-                "No recent searches",
-                style = MaterialTheme.typography.bodyMedium,
-                color = muted,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            )
-        } else {
+        if (recentSearches.isNotEmpty()) {
             recentSearches.take(6).forEachIndexed { index, term ->
                 if (index > 0) {
                     HorizontalDivider(
@@ -472,7 +465,7 @@ private fun IdleCommandBody(
         }
 
         Spacer(Modifier.height(22.dp))
-        SectionHeader(title = "Quick access", action = "Edit", onAction = onAddShortcut)
+        if (shortcuts.isNotEmpty()) SectionHeader(title = "Quick access", action = "Edit", onAction = onAddShortcut)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

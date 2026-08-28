@@ -140,6 +140,7 @@ fun BrowserScreen(
     onWebViewVisibleChanged: (Boolean) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val siteMenu by viewModel.siteContextMenu.collectAsState()
     val currentEngine by viewModel.searchEngine.collectAsState()
     val homeBackground by viewModel.homeBackground.collectAsState()
     val dynamicBackgroundEnabled by viewModel.dynamicBackgroundEnabled.collectAsState()
@@ -1184,8 +1185,8 @@ fun BrowserScreen(
                     onSearchOmnibox = { query -> viewModel.searchOmnibox(query) },
                     onFetchSearchSuggestions = { query -> viewModel.fetchSearchSuggestions(query) },
                     searchEngine = currentEngine,
-                    recentSearches = recentSearches,
-                    shortcuts = shortcuts,
+                    recentSearches = if (activeTab?.isIncognito == true) emptyList() else recentSearches,
+                    shortcuts = if (activeTab?.isIncognito == true) emptyList() else shortcuts,
                     onFillQuery = { commandBarQuery = it },
                     onClearRecentSearches = { viewModel.clearRecentSearches() },
                     onShortcutClick = { shortcut ->
@@ -1195,8 +1196,8 @@ fun BrowserScreen(
                         isCommandBarOpen = false
                     },
                     onAddShortcut = { title, url -> viewModel.addShortcut(title, url) },
-                    hasStoredRecentSearches = hasStoredRecentSearches,
-                    trendingSearches = trendingSearches,
+                    hasStoredRecentSearches = if (activeTab?.isIncognito == true) true else hasStoredRecentSearches,
+                    trendingSearches = if (activeTab?.isIncognito == true) emptyList() else trendingSearches,
                     onSubmit = { input ->
                         if (input.isBlank()) return@CommandBar
                         when (commandBarMode) {
@@ -1278,6 +1279,57 @@ fun BrowserScreen(
                         onDismiss = {
                             isAssistantSheetOpen = false
                             viewModel.resetAssistantState()
+                        },
+                    )
+                }
+
+                siteMenu?.let { menu ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { viewModel.dismissSiteContextMenu() },
+                        title = { Text(menu.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        text = {
+                            Column {
+                                val row: @Composable (String, () -> Unit) -> Unit = { label, action ->
+                                    Text(
+                                        label,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .bouncyClickable(onClick = {
+                                                action()
+                                                viewModel.dismissSiteContextMenu()
+                                            })
+                                            .padding(vertical = 12.dp),
+                                    )
+                                }
+                                row("Open in new tab") {
+                                    val tab = viewModel.openInNewTab(menu.url, incognito = activeTab?.isIncognito == true)
+                                    geckoSessionPool.requestLoad(tab.id, menu.url)
+                                }
+                                row("Open in new tab group") {
+                                    val tab = viewModel.openInNewTabGroup(menu.url, incognito = activeTab?.isIncognito == true)
+                                    geckoSessionPool.requestLoad(tab.id, menu.url)
+                                }
+                                row("Open in incognito tab") {
+                                    val tab = viewModel.openInNewTab(menu.url, incognito = true)
+                                    geckoSessionPool.requestLoad(tab.id, menu.url)
+                                }
+                                row("Add to shortcuts") { viewModel.addShortcut(menu.title, menu.url) }
+                                row("Share") {
+                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(android.content.Intent.EXTRA_TEXT, menu.url)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(send, "Share"))
+                                }
+                                row("Copy link") {
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                        as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Link", menu.url))
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { viewModel.dismissSiteContextMenu() }) { Text("Close") }
                         },
                     )
                 }
@@ -2388,6 +2440,14 @@ private fun TabGridCard(
                             modifier = Modifier
                                 .size(14.dp)
                                 .padding(end = 6.dp),
+                        )
+                    }
+                    if (!tab.groupName.isNullOrBlank()) {
+                        Text(
+                            tab.groupName,
+                            maxLines = 1,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     Text(

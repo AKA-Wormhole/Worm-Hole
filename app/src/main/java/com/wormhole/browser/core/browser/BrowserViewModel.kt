@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wormhole.browser.core.ai.GeminiClient
 import com.wormhole.browser.core.library.LibraryEntry
+import com.wormhole.browser.core.library.OmniboxSuggestion
 import com.wormhole.browser.core.library.LibraryRepository
 import com.wormhole.browser.core.library.SearchQuerySuggestion
 import com.wormhole.browser.core.library.ShortcutEntry
@@ -117,10 +118,20 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val recentSearches = libraryRepository.recentSearches.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val hasStoredRecentSearches = libraryRepository.hasStoredRecentSearches.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    suspend fun searchOmnibox(query: String) = libraryRepository.searchOmnibox(query)
+    suspend fun searchOmnibox(query: String): List<OmniboxSuggestion> {
+        if (_uiState.value.activeTab?.isIncognito == true) return emptyList()
+        return libraryRepository.searchOmnibox(query)
+    }
 
-    suspend fun fetchSearchSuggestions(query: String): List<SearchQuerySuggestion> =
-        searchSuggestionsClient.suggestionsFor(query, limit = 8).map { SearchQuerySuggestion(it) }
+    suspend fun fetchSearchSuggestions(query: String): List<SearchQuerySuggestion> {
+        if (_uiState.value.activeTab?.isIncognito == true) return emptyList()
+        return searchSuggestionsClient.suggestionsFor(query, limit = 8).map { SearchQuerySuggestion(it) }
+    }
+
+    suspend fun searchOmniboxPrivateSafe(query: String): List<OmniboxSuggestion> {
+        if (_uiState.value.activeTab?.isIncognito == true) return emptyList()
+        return libraryRepository.searchOmnibox(query)
+    }
 
     val searchEngine: StateFlow<SearchEngine> = settingsRepository.searchEngine
         .stateIn(viewModelScope, SharingStarted.Eagerly, SearchEngine.DEFAULT)
@@ -168,6 +179,37 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
+
+    data class SiteContextMenu(val tabId: String, val url: String, val title: String)
+    private val _siteContextMenu = MutableStateFlow<SiteContextMenu?>(null)
+    val siteContextMenu: StateFlow<SiteContextMenu?> = _siteContextMenu.asStateFlow()
+
+    override fun onSiteContextMenu(tabId: String, url: String, title: String) {
+        _siteContextMenu.value = SiteContextMenu(tabId, url, title)
+    }
+
+    fun dismissSiteContextMenu() {
+        _siteContextMenu.value = null
+    }
+
+    fun openInNewTab(url: String, incognito: Boolean = false, groupId: String? = null, groupName: String? = null): Tab {
+        return newTab(url = url, activate = true, spaceId = _uiState.value.activeSpaceId, incognito = incognito).let { tab ->
+            if (groupId != null) {
+                _uiState.update { state ->
+                    state.copy(tabs = state.tabs.map {
+                        if (it.id == tab.id) it.copy(groupId = groupId, groupName = groupName) else it
+                    })
+                }
+                persistSession()
+            }
+            _uiState.value.tabs.first { it.id == tab.id }
+        }
+    }
+
+    fun openInNewTabGroup(url: String, incognito: Boolean = false): Tab {
+        val name = "Group ${(_uiState.value.tabs.mapNotNull { it.groupName }.distinct().size + 1)}"
+        return openInNewTab(url, incognito = incognito, groupId = java.util.UUID.randomUUID().toString(), groupName = name)
+    }
 
     private val _events = MutableSharedFlow<BrowserEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<BrowserEvent> = _events
@@ -343,6 +385,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun recordTypedQueryIfSearch(input: String) {
+        if (_uiState.value.activeTab?.isIncognito == true) return
         val trimmed = input.trim()
         if (trimmed.isBlank()) return
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return
