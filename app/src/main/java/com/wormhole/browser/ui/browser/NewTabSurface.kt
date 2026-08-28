@@ -285,8 +285,8 @@ fun NewTabSurface(
 
             androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(32.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 maxItemsInEachRow = 4,
             ) {
                 shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE).forEach { shortcut ->
@@ -639,71 +639,86 @@ private fun ContinueBrowsingCard(
         FaviconCache.fetchAndCache(entry.url)
     }
     val favicon = FaviconCache.get(entry.url)
+    val pageThumbnail = HistoryThumbnailCache.get(entry.url)
+    val cardShape = RoundedCornerShape(16.dp)
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = if (homeIsDark()) Color(0xFF243044) else Color.White,
+        shape = cardShape,
+        color = if (homeIsDark()) Color(0xFF1E2A44) else Color.White,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
             if (homeIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
         ),
         modifier = Modifier
             .fillMaxWidth()
+            .clip(cardShape)
             .bouncyClickable(onClick = onOpen),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        if (homeIsDark()) Color(0xFF222222) else Color(0xFFF2F2F2),
-                        RoundedCornerShape(12.dp),
-                    ),
+                    .size(width = 108.dp, height = 84.dp)
+                    .background(if (homeIsDark()) Color(0xFF12161F) else Color(0xFFF2F2F2)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (favicon != null && !favicon.isRecycled) {
+                if (pageThumbnail != null && !pageThumbnail.isRecycled) {
+                    androidx.compose.foundation.Image(
+                        bitmap = pageThumbnail.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (favicon != null && !favicon.isRecycled) {
                     androidx.compose.foundation.Image(
                         bitmap = favicon.asImageBitmap(),
                         contentDescription = null,
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(32.dp),
                     )
                 } else {
                     Text(
                         entry.title.firstOrNull()?.uppercase() ?: "W",
                         fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (homeIsDark()) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.4f),
                     )
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "Continue browsing",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (homeIsDark()) Color.White.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 Text(
                     entry.title.ifBlank { entry.url },
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = if (homeIsDark()) Color.White else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    entry.url,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (homeIsDark()) Color.White.copy(alpha = 0.62f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (favicon != null && !favicon.isRecycled) {
+                        androidx.compose.foundation.Image(
+                            bitmap = favicon.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    Text(
+                        entry.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (homeIsDark()) Color.White.copy(alpha = 0.62f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "History",
-                modifier = Modifier.bouncyClickable(onClick = onOpenHistory),
-            )
         }
     }
 }
@@ -799,11 +814,11 @@ private fun ShortcutTile(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(76.dp),
+        modifier = modifier.width(68.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(68.dp)
+                .size(64.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .combinedClickable(
@@ -817,13 +832,15 @@ private fun ShortcutTile(
         ) {
             ShortcutGlyph(shortcut = shortcut)
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = shortcut.title,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 
@@ -849,11 +866,11 @@ private fun ShortcutTile(
 private fun AddShortcutTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.width(76.dp),
+        modifier = modifier.width(68.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(68.dp)
+                .size(64.dp)
                 .background(homeTileFill(), CircleShape)
                 .border(1.dp, homeHairline(), CircleShape)
                 .bouncyClickable(onClick = onClick),
@@ -866,12 +883,15 @@ private fun AddShortcutTile(onClick: () -> Unit, modifier: Modifier = Modifier) 
                 modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Add",
+            text = "Add shortcut",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
