@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,7 +39,6 @@ fun HomeToolsMenu(
     onSettingsClick: () -> Unit,
     onNewIncognitoTabClick: () -> Unit,
     onAssistantClick: () -> Unit = {},
-    onChangeWallpaperClick: () -> Unit = onSettingsClick,
     onExtensionsClick: () -> Unit = onSettingsClick,
     anchorBounds: Rect? = null,
 ) {
@@ -67,11 +65,6 @@ fun HomeToolsMenu(
                 SheetTile(Modifier.weight(1f), Icons.Default.Download, "Downloads") { onDownloadsClick(); onDismiss() }
                 SheetTile(Modifier.weight(1f), Icons.Default.Password, "Passwords") { onPasswordsClick(); onDismiss() }
             }
-            SheetRow(
-                icon = Icons.Default.Wallpaper,
-                title = "Change wallpaper",
-                onClick = { onChangeWallpaperClick(); onDismiss() },
-            )
             SheetRow(
                 icon = Icons.Default.Settings,
                 title = "Settings",
