@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -207,6 +208,8 @@ fun NewTabSurface(
         com.wormhole.browser.core.settings.HomeBackground.VIOLET -> Color(0xFF2B1066)
         com.wormhole.browser.core.settings.HomeBackground.NAVY -> Color(0xFF0F1B3D)
         com.wormhole.browser.core.settings.HomeBackground.PAPER -> Color(0xFFF4EFE6)
+        com.wormhole.browser.core.settings.HomeBackground.DEFAULT ->
+            if (isDarkChrome) Color(0xFF0B1A3A) else Color(0xFFF9F9FB)
         else -> null
     }
     Box(
@@ -263,12 +266,19 @@ fun NewTabSurface(
 
             Spacer(Modifier.height(22.dp))
 
-            Text(
-                "Shortcuts",
-                style = MaterialTheme.typography.titleSmall,
-                color = muted,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Shortcuts", style = MaterialTheme.typography.titleSmall, color = muted)
+                Text(
+                    "Show all  >",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = muted,
+                    modifier = Modifier.bouncyClickable(onClick = onLibraryClick),
+                )
+            }
             Spacer(Modifier.height(10.dp))
 
             Row(
@@ -290,19 +300,26 @@ fun NewTabSurface(
             Spacer(Modifier.height(22.dp))
 
             history.firstOrNull()?.let { entry ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Jump back in", style = MaterialTheme.typography.titleSmall, color = muted)
+                    Text(
+                        "Show all  >",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = muted,
+                        modifier = Modifier.bouncyClickable(onClick = onOpenHistoryLibrary),
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
                 ContinueBrowsingCard(
                     entry = entry,
                     onOpen = { onHistoryClick(entry) },
                     onOpenHistory = onOpenHistoryLibrary,
                 )
                 Spacer(Modifier.height(16.dp))
-            }
-
-            if (trendingSearches.isNotEmpty()) {
-                TrendingCard(
-                    terms = trendingSearches.take(6),
-                    onTermClick = onTrendingSearch,
-                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -323,7 +340,7 @@ fun NewTabSurface(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Surface(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(percent = 50),
                 color = tileFill,
                 border = androidx.compose.foundation.BorderStroke(1.dp, hairline),
                 modifier = Modifier
@@ -342,11 +359,12 @@ fun NewTabSurface(
                         SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(20.dp))
                     }
                     Text(
-                        "Search or type URL",
+                        "Search",
                         style = MaterialTheme.typography.bodyMedium,
                         color = muted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    VoiceMicButton(onResult = onVoiceSearch, tint = muted, iconSize = 18.dp)
                     )
                 }
             }
@@ -687,8 +705,8 @@ private fun ShortcutTile(
         Box(
             modifier = Modifier
                 .size(52.dp)
-                .background(homeTileFill(), RoundedCornerShape(16.dp))
-                .border(1.dp, homeHairline(), RoundedCornerShape(16.dp))
+                .background(homeTileFill(), CircleShape)
+                .border(1.dp, homeHairline(), CircleShape)
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -737,8 +755,8 @@ private fun AddShortcutTile(onClick: () -> Unit, modifier: Modifier = Modifier) 
         Box(
             modifier = Modifier
                 .size(52.dp)
-                .background(homeTileFill(), RoundedCornerShape(16.dp))
-                .border(1.dp, homeHairline(), RoundedCornerShape(16.dp))
+                .background(homeTileFill(), CircleShape)
+                .border(1.dp, homeHairline(), CircleShape)
                 .bouncyClickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

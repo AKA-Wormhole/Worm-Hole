@@ -73,14 +73,14 @@ fun IncognitoHomeSurface(
 ) {
     val ink = Color.White.copy(alpha = 0.92f)
     val muted = Color.White.copy(alpha = 0.55f)
-    val pill = Color(0xFF3F266F)
+    val pill = Color(0xFF162544)
     var menuAnchorBounds by remember { mutableStateOf<Rect?>(null) }
     var showActivityInfo by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF2B1066))
+            .background(Color(0xFF0B1A3A))
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
@@ -127,44 +127,6 @@ fun IncognitoHomeSurface(
                     .bouncyClickable(onClick = { showActivityInfo = true }),
             )
 
-            // Dark search pill — same rounded shape as normal home, darker fill
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = pill,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 28.dp)
-                    .height(52.dp)
-                    .bouncyClickable(onClick = onSearchClick),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(
-                        Icons.Default.Shield,
-                        contentDescription = null,
-                        tint = muted,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Text(
-                        "Search or type URL",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = muted,
-                        modifier = Modifier.weight(1f),
-                    )
-                    VoiceMicButton(
-                        onResult = onVoiceSearch,
-                        tint = muted,
-                        iconSize = 20.dp,
-                    )
-                }
-            }
-
             Spacer(modifier = Modifier.weight(1f))
 
             // Bottom bar — subtle, gray/white only
@@ -174,52 +136,45 @@ fun IncognitoHomeSurface(
                     .padding(bottom = 12.dp, top = 8.dp)
                     .height(56.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Incognito-marked tab switcher
+                Surface(
+                    shape = RoundedCornerShape(percent = 50),
+                    color = pill,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .bouncyClickable(onClick = onSearchClick),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(Icons.Default.Shield, null, tint = muted, modifier = Modifier.size(18.dp))
+                        Text("Search", color = muted, modifier = Modifier.weight(1f))
+                        VoiceMicButton(onResult = onVoiceSearch, tint = muted, iconSize = 18.dp)
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .border(
-                            width = 1.5.dp,
-                            color = ink.copy(alpha = 0.85f),
-                            shape = RoundedCornerShape(8.dp),
-                        )
+                        .border(1.5.dp, ink.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
                         .bouncyClickable(onClick = onTabSwitcherClick),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = tabCount.coerceAtLeast(1).toString(),
+                        text = tabCount.coerceAtLeast(0).toString(),
                         style = MaterialTheme.typography.labelMedium,
                         color = ink,
                     )
-                    // Small private indicator dot
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(2.dp)
-                            .size(7.dp)
-                            .background(Color.White.copy(alpha = 0.75f), CircleShape),
-                    )
                 }
-
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.12f),
-                    modifier = Modifier
-                        .size(48.dp)
-                        .bouncyClickable(onClick = onNewIncognitoTabClick),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "New incognito tab",
-                            tint = ink,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                }
-
+                Icon(
+                    Icons.Default.Add,
+                    contentDescription = "New incognito tab",
+                    tint = ink,
+                    modifier = Modifier.size(22.dp).bouncyClickable(onClick = onNewIncognitoTabClick),
+                )
                 Icon(
                     Icons.Default.Menu,
                     contentDescription = "Menu",

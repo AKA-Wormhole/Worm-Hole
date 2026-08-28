@@ -300,7 +300,7 @@ private fun SearchHeader(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Surface(
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(percent = 50),
             color = MaterialTheme.colorScheme.surface,
             border = WormHoleSurface.border(),
             modifier = Modifier
@@ -453,7 +453,7 @@ private fun IdleCommandBody(
         }
 
         Spacer(Modifier.height(18.dp))
-        SectionHeader(title = "Trending searches")
+        // trending removed
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
