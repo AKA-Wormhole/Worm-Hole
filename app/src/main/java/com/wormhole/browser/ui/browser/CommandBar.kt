@@ -215,7 +215,7 @@ fun CommandBar(
                             onRecentClick = onSubmit,
                             onFillQuery = onFillQuery,
                             onClearRecentSearches = onClearRecentSearches,
-                            trending = emptyList(),
+                            trending = trendingSearches,
                             onTrendingClick = onSubmit,
                             shortcuts = shortcuts,
                             onShortcutClick = onShortcutClick,
@@ -862,6 +862,7 @@ private fun AddQuickAccessDialog(
     onConfirm: (title: String, url: String) -> Unit,
 ) {
     var raw by remember { mutableStateOf("") }
+    val valid = com.wormhole.browser.core.library.ShortcutCatalog.isRealUrl(raw)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add shortcut") },
@@ -874,7 +875,7 @@ private fun AddQuickAccessDialog(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
-                        if (raw.isNotBlank()) onConfirm(labelForUrl(raw), normalizeHttpUrl(raw))
+                        if (valid) onConfirm(labelForUrl(raw), com.wormhole.browser.core.library.ShortcutCatalog.normalizeUrl(raw))
                     },
                 ),
                 modifier = Modifier.fillMaxWidth(),
@@ -882,8 +883,8 @@ private fun AddQuickAccessDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = raw.isNotBlank(),
-                onClick = { onConfirm(labelForUrl(raw), normalizeHttpUrl(raw)) },
+                enabled = valid,
+                onClick = { onConfirm(labelForUrl(raw), com.wormhole.browser.core.library.ShortcutCatalog.normalizeUrl(raw)) },
             ) { Text("Add") }
         },
         dismissButton = {

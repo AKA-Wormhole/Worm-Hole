@@ -66,6 +66,9 @@ interface LibraryDao {
     @Query("SELECT * FROM shortcuts ORDER BY createdAt ASC LIMIT 100")
     fun shortcuts(): Flow<List<ShortcutEntity>>
 
+    @Query("SELECT COUNT(*) FROM shortcuts")
+    suspend fun shortcutCount(): Int
+
     @Query("DELETE FROM shortcuts WHERE url = :url")
     suspend fun deleteShortcut(url: String): Int
 

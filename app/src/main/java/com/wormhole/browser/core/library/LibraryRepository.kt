@@ -24,6 +24,47 @@ data class LibraryEntry(val title: String, val url: String, val createdAt: Long)
 @Serializable
 data class ShortcutEntry(val title: String, val url: String, val createdAt: Long)
 
+object ShortcutCatalog {
+    const val MAX = 22
+    const val HOME_VISIBLE = 7
+
+    val starter: List<ShortcutEntry> = listOf(
+        ShortcutEntry("Google", "https://www.google.com/", 1L),
+        ShortcutEntry("YouTube", "https://www.youtube.com/", 2L),
+        ShortcutEntry("Wikipedia", "https://www.wikipedia.org/", 3L),
+        ShortcutEntry("Gmail", "https://mail.google.com/", 4L),
+        ShortcutEntry("Maps", "https://maps.google.com/", 5L),
+        ShortcutEntry("Translate", "https://translate.google.com/", 6L),
+        ShortcutEntry("GitHub", "https://github.com/", 7L),
+    )
+
+    fun isRealUrl(input: String): Boolean {
+        val trimmed = input.trim()
+        if (trimmed.isBlank() || " " in trimmed) return false
+        val withScheme = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            trimmed
+        } else {
+            "https://$trimmed"
+        }
+        return runCatching {
+            val uri = java.net.URI(withScheme)
+            val host = uri.host?.removePrefix("www.")?.lowercase().orEmpty()
+            val scheme = uri.scheme?.lowercase()
+            (scheme == "http" || scheme == "https") &&
+                host.isNotBlank() &&
+                (host.contains('.') || host == "localhost") &&
+                !host.startsWith(".") &&
+                !host.endsWith(".")
+        }.getOrDefault(false)
+    }
+
+    fun normalizeUrl(input: String): String {
+        val trimmed = input.trim()
+        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
+        else "https://$trimmed"
+    }
+}
+
 data class OmniboxSuggestion(val title: String, val url: String, val isBookmark: Boolean)
 
 data class SearchQuerySuggestion(val text: String)
@@ -44,7 +85,7 @@ class LibraryRepository(private val context: Context) {
 
     val shortcuts: Flow<List<ShortcutEntry>> = dao.shortcuts().map { rows ->
         rows.map { ShortcutEntry(it.title, it.url, it.createdAt) }
-    }.onStart { migrateLegacyIfNeeded() }
+    }.onStart { migrateLegacyIfNeeded(); seedStarterShortcutsIfNeeded() }
 
     val recentSearches: Flow<List<String>> = context.legacyLibraryDataStore.data.map { prefs ->
         decodeStringList(prefs[RECENT_SEARCHES_KEY])
@@ -74,7 +115,18 @@ class LibraryRepository(private val context: Context) {
 
     suspend fun addBookmark(entry: LibraryEntry) { migrateLegacyIfNeeded(); dao.insertBookmark(BookmarkEntity(title = entry.title, url = entry.url, createdAt = entry.createdAt)) }
     suspend fun removeBookmark(url: String) { migrateLegacyIfNeeded(); dao.deleteBookmark(url) }
-    suspend fun addShortcut(entry: ShortcutEntry) { migrateLegacyIfNeeded(); dao.insertShortcut(ShortcutEntity(title = entry.title, url = entry.url, createdAt = entry.createdAt)) }
+    suspend fun addShortcut(entry: ShortcutEntry) {
+        migrateLegacyIfNeeded()
+        if (!ShortcutCatalog.isRealUrl(entry.url)) return
+        if (dao.shortcutCount() >= ShortcutCatalog.MAX) return
+        dao.insertShortcut(
+            ShortcutEntity(
+                title = entry.title,
+                url = ShortcutCatalog.normalizeUrl(entry.url),
+                createdAt = entry.createdAt,
+            ),
+        )
+    }
     suspend fun removeShortcut(url: String) { migrateLegacyIfNeeded(); dao.deleteShortcut(url) }
     suspend fun addHistory(entry: LibraryEntry) { migrateLegacyIfNeeded(); dao.insertHistory(HistoryEntity(title = entry.title, url = entry.url, visitedAt = entry.createdAt)) }
     suspend fun clearHistory() { migrateLegacyIfNeeded(); dao.clearHistory() }
@@ -102,6 +154,17 @@ class LibraryRepository(private val context: Context) {
     private fun escapeLikeWildcards(raw: String): String =
         raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+    private suspend fun seedStarterShortcutsIfNeeded() = migrationMutex.withLock {
+        val prefs = context.legacyLibraryDataStore.data.first()
+        if (prefs[SHORTCUTS_SEEDED_KEY] == true) return@withLock
+        if (dao.shortcutCount() == 0) {
+            ShortcutCatalog.starter.forEach {
+                dao.insertShortcut(ShortcutEntity(title = it.title, url = it.url, createdAt = it.createdAt))
+            }
+        }
+        context.legacyLibraryDataStore.edit { it[SHORTCUTS_SEEDED_KEY] = true }
+    }
+
     private suspend fun migrateLegacyIfNeeded() = migrationMutex.withLock {
         val prefs = context.legacyLibraryDataStore.data.first()
         if (prefs[MIGRATED_KEY] == true) return@withLock
@@ -114,7 +177,18 @@ class LibraryRepository(private val context: Context) {
         history.asReversed().forEach { dao.insertHistory(HistoryEntity(title = it.title, url = it.url, visitedAt = it.createdAt)) }
         shortcuts.forEach { dao.insertShortcut(ShortcutEntity(title = it.title, url = it.url, createdAt = it.createdAt)) }
 
-        context.legacyLibraryDataStore.edit { it[MIGRATED_KEY] = true }
+        if (prefs[SHORTCUTS_SEEDED_KEY] != true) {
+            if (dao.shortcutCount() == 0) {
+                ShortcutCatalog.starter.forEach {
+                    dao.insertShortcut(ShortcutEntity(title = it.title, url = it.url, createdAt = it.createdAt))
+                }
+            }
+        }
+
+        context.legacyLibraryDataStore.edit {
+            it[MIGRATED_KEY] = true
+            it[SHORTCUTS_SEEDED_KEY] = true
+        }
     }
 
     private fun decodeEntries(value: String?): List<LibraryEntry> = runCatching {
@@ -132,6 +206,7 @@ class LibraryRepository(private val context: Context) {
 
     companion object {
         private val MIGRATED_KEY = booleanPreferencesKey("room_migrated")
+        private val SHORTCUTS_SEEDED_KEY = booleanPreferencesKey("shortcuts_seeded_v1")
         private val BOOKMARKS_KEY = stringPreferencesKey("bookmarks")
         private val HISTORY_KEY = stringPreferencesKey("history")
         private val SHORTCUTS_KEY = stringPreferencesKey("shortcuts")

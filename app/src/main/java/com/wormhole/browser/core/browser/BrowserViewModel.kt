@@ -311,9 +311,11 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun addShortcut(title: String, url: String) {
-        if (url.isBlank()) return
+        if (!com.wormhole.browser.core.library.ShortcutCatalog.isRealUrl(url)) return
         viewModelScope.launch {
-            libraryRepository.addShortcut(ShortcutEntry(title.ifBlank { url }, url, System.currentTimeMillis()))
+            libraryRepository.addShortcut(
+                ShortcutEntry(title.ifBlank { url }, com.wormhole.browser.core.library.ShortcutCatalog.normalizeUrl(url), System.currentTimeMillis()),
+            )
         }
     }
 

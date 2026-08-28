@@ -175,6 +175,7 @@ fun NewTabSurface(
     onNewIncognitoTabClick: () -> Unit = {},
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showAllShortcuts by remember { mutableStateOf(false) }
     var showEnginePicker by remember { mutableStateOf(false) }
     var menuAnchorBounds by remember { mutableStateOf<Rect?>(null) }
     val onBackground = MaterialTheme.colorScheme.onBackground
@@ -276,23 +277,25 @@ fun NewTabSurface(
                     "Show all  >",
                     style = MaterialTheme.typography.labelLarge,
                     color = muted,
-                    modifier = Modifier.bouncyClickable(onClick = onLibraryClick),
+                    modifier = Modifier.bouncyClickable(onClick = { showAllShortcuts = true }),
                 )
             }
             Spacer(Modifier.height(10.dp))
 
-            Row(
+            androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                maxItemsInEachRow = 4,
             ) {
-                shortcuts.take(5).forEach { shortcut ->
+                shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE).forEach { shortcut ->
                     ShortcutTile(
                         shortcut = shortcut,
                         onClick = { onShortcutClick(shortcut) },
                         onRemove = { onShortcutRemove(shortcut) },
                     )
                 }
-                if (shortcuts.size < 5) {
+                if (shortcuts.size < com.wormhole.browser.core.library.ShortcutCatalog.MAX) {
                     AddShortcutTile(onClick = { showAddDialog = true })
                 }
             }
@@ -422,6 +425,62 @@ fun NewTabSurface(
             onConfirm = { title, url ->
                 onAddShortcut(title, url)
                 showAddDialog = false
+            },
+        )
+    }
+    if (showAllShortcuts) {
+        AlertDialog(
+            onDismissRequest = { showAllShortcuts = false },
+            title = { Text("Shortcuts") },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.height(360.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(shortcuts.size) { index ->
+                        val shortcut = shortcuts[index]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bouncyClickable(onClick = {
+                                    onShortcutClick(shortcut)
+                                    showAllShortcuts = false
+                                })
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            ShortcutGlyph(shortcut)
+                            Column(Modifier.weight(1f)) {
+                                Text(shortcut.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(shortcut.url, style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(
+                                "Remove",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.bouncyClickable(onClick = { onShortcutRemove(shortcut) }),
+                            )
+                        }
+                    }
+                    if (shortcuts.size < com.wormhole.browser.core.library.ShortcutCatalog.MAX) {
+                        item {
+                            Text(
+                                "Add shortcut",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .padding(top = 8.dp)
+                                    .bouncyClickable(onClick = {
+                                        showAllShortcuts = false
+                                        showAddDialog = true
+                                    }),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAllShortcuts = false }) { Text("Close") }
             },
         )
     }
@@ -783,6 +842,7 @@ private fun AddShortcutDialog(
     onConfirm: (title: String, url: String) -> Unit,
 ) {
     var url by remember { mutableStateOf("") }
+    val valid = com.wormhole.browser.core.library.ShortcutCatalog.isRealUrl(url)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -790,7 +850,7 @@ private fun AddShortcutDialog(
         text = {
             Column {
                 Text(
-                    "Enter a website to pin to your home screen.",
+                    "Enter a real website URL. You can save up to 22 shortcuts.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 12.dp),
@@ -798,11 +858,12 @@ private fun AddShortcutDialog(
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
-                    placeholder = { Text("example.com") },
+                    placeholder = { Text("https://example.com") },
                     singleLine = true,
+                    isError = url.isNotBlank() && !valid,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
-                        if (url.isNotBlank()) onConfirm(hostLabelFor(url), normalizeUrl(url))
+                        if (valid) onConfirm(hostLabelFor(url), com.wormhole.browser.core.library.ShortcutCatalog.normalizeUrl(url))
                     }),
                     colors = OutlinedTextFieldDefaults.colors(
                         cursorColor = MaterialTheme.colorScheme.primary,
@@ -814,8 +875,8 @@ private fun AddShortcutDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = url.isNotBlank(),
-                onClick = { onConfirm(hostLabelFor(url), normalizeUrl(url)) },
+                enabled = valid,
+                onClick = { onConfirm(hostLabelFor(url), com.wormhole.browser.core.library.ShortcutCatalog.normalizeUrl(url)) },
             ) { Text("Add") }
         },
         dismissButton = {
