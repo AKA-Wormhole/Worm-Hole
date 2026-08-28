@@ -286,7 +286,7 @@ fun NewTabSurface(
             androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(32.dp),
                 maxItemsInEachRow = 4,
             ) {
                 shortcuts.take(com.wormhole.browser.core.library.ShortcutCatalog.HOME_VISIBLE).forEach { shortcut ->
@@ -301,7 +301,15 @@ fun NewTabSurface(
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(20.dp))
+
+            val weeklyVisitCount = remember(history) {
+                val weekAgo = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+                history.filter { it.createdAt >= weekAgo }.distinctBy { it.url }.size
+            }
+            WeeklyVisitsPill(count = weeklyVisitCount)
+
+            Spacer(Modifier.height(26.dp))
 
             history.firstOrNull()?.let { entry ->
                 Row(
@@ -486,6 +494,31 @@ fun NewTabSurface(
     }
 }
 
+
+/** Small centered pill summarizing the number of distinct sites visited in the past 7 days. */
+@Composable
+private fun WeeklyVisitsPill(count: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .background(homeTileFill(), CircleShape)
+            .border(1.dp, homeHairline(), CircleShape)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.TrendingUp,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            text = "$count Website${if (count == 1) "" else "s"} Visited this Week",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 @Composable
 private fun homeIsDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.45f
