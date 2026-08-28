@@ -842,7 +842,6 @@ fun BrowserScreen(
                                 viewModel.updateTabUrl(tab.id, entry.url)
                             },
                             searchEngine = currentEngine,
-                    onEngineSelected = viewModel::setSearchEngine,
                             onEngineSelected = viewModel::setSearchEngine,
                             homeBackground = homeBackground,
                             tabCount = uiState.tabs.count { it.url.isNotBlank() },
@@ -1777,7 +1776,7 @@ private fun BottomBar(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // Search / address pill.
- The small leading icon opens the AI sheet directly;
+            // Engine logo opens the search-engine picker.
             // tapping the rest of the pill opens the normal search/address bar.
             Surface(
                 shape = RoundedCornerShape(50),
