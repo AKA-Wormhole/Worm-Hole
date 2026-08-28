@@ -104,7 +104,7 @@ private fun SheetRow(icon: ImageVector, title: String, subtitle: String? = null,
 }
 
 @Composable
-private fun SheetTile(modifier: Modifier, icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun SheetTile(modifier: Modifier, icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))

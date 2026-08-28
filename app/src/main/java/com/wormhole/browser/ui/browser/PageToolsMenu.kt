@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
@@ -59,12 +57,10 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.wormhole.browser.ui.theme.WormHoleMotion
-import com.wormhole.browser.ui.theme.WormHoleSurface
 import com.wormhole.browser.ui.theme.bouncyClickable
 
 @Composable
@@ -113,30 +109,13 @@ fun PageToolsMenu(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        QuickAccessIcon(
-                            icon = Icons.Default.Bookmarks,
-                            label = "Bookmarks",
-                            onClick = { onLibraryClick(); onDismiss() },
-                        )
-                        QuickAccessIcon(
-                            icon = Icons.Default.History,
-                            label = "History",
-                            onClick = { onHistoryClick(); onDismiss() },
-                        )
-                        QuickAccessIcon(
-                            icon = Icons.Default.Download,
-                            label = "Downloads",
-                            onClick = { onDownloadsClick(); onDismiss() },
-                        )
-                        QuickAccessIcon(
-                            icon = Icons.Default.Password,
-                            label = "Passwords",
-                            onClick = { onPasswordsClick(); onDismiss() },
-                        )
+                        SheetTile(Modifier.weight(1f), Icons.Default.History, "History") { onHistoryClick(); onDismiss() }
+                        SheetTile(Modifier.weight(1f), Icons.Default.Bookmarks, "Bookmarks") { onLibraryClick(); onDismiss() }
+                        SheetTile(Modifier.weight(1f), Icons.Default.Download, "Downloads") { onDownloadsClick(); onDismiss() }
+                        SheetTile(Modifier.weight(1f), Icons.Default.Password, "Passwords") { onPasswordsClick(); onDismiss() }
                     }
 
                     MenuDivider()
@@ -207,34 +186,3 @@ private fun MenuItem(
     }
 }
 
-@Composable
-private fun QuickAccessIcon(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .background(WormHoleSurface.FillRaised, CircleShape)
-                .bouncyClickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
-}
