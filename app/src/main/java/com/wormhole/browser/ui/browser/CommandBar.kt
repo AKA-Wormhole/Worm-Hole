@@ -210,14 +210,14 @@ fun CommandBar(
                             recentSearches = when {
                                 recentSearches.isNotEmpty() -> recentSearches
                                 hasStoredRecentSearches -> emptyList()
-                                else -> DefaultRecentSearches
+                                else -> emptyList()
                             },
                             onRecentClick = onSubmit,
                             onFillQuery = onFillQuery,
                             onClearRecentSearches = onClearRecentSearches,
-                            trending = DefaultTrendingSearches,
+                            trending = emptyList(),
                             onTrendingClick = onSubmit,
-                            shortcuts = shortcuts.ifEmpty { DefaultQuickAccess },
+                            shortcuts = shortcuts,
                             onShortcutClick = onShortcutClick,
                             onAddShortcut = { showAddShortcut = true },
                         )
