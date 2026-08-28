@@ -842,6 +842,7 @@ fun BrowserScreen(
                                 viewModel.updateTabUrl(tab.id, entry.url)
                             },
                             searchEngine = currentEngine,
+                    onEngineSelected = viewModel::setSearchEngine,
                             onEngineSelected = viewModel::setSearchEngine,
                             homeBackground = homeBackground,
                             tabCount = uiState.tabs.count { it.url.isNotBlank() },

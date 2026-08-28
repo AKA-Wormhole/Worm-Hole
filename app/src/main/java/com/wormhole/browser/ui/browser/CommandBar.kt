@@ -99,6 +99,31 @@ import kotlinx.coroutines.launch
 
 enum class CommandBarMode { SEARCH, AI }
 
+private val DefaultRecentSearches = listOf(
+    "Wormhole AI",
+    "Space exploration news",
+    "Android 16 features",
+    "Minimal desk setup",
+    "Best cafes in London",
+)
+
+private val DefaultTrendingSearches = listOf(
+    "iPhone 16 Pro",
+    "Tesla Model 3 2024",
+    "OpenAI GPT-5",
+    "India vs Sri Lanka highlights",
+    "WWDC 2024",
+    "SpaceX Starship launch",
+)
+
+private val DefaultQuickAccess = listOf(
+    ShortcutEntry("Google", "https://www.google.com/", 0L),
+    ShortcutEntry("YouTube", "https://www.youtube.com/", 0L),
+    ShortcutEntry("Reddit", "https://www.reddit.com/", 0L),
+    ShortcutEntry("X", "https://x.com/", 0L),
+    ShortcutEntry("Wikipedia", "https://www.wikipedia.org/", 0L),
+)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CommandBar(
@@ -120,6 +145,7 @@ fun CommandBar(
     onShortcutClick: (ShortcutEntry) -> Unit = {},
     onAddShortcut: (title: String, url: String) -> Unit = { _, _ -> },
     hasStoredRecentSearches: Boolean = false,
+    onEngineSelected: (SearchEngine) -> Unit = {},
     trendingSearches: List<String> = emptyList(),
 ) {
     var showAddShortcut by remember { mutableStateOf(false) }
@@ -138,10 +164,10 @@ fun CommandBar(
         visible = isOpen,
         enter = fadeIn(animationSpec = WormHoleMotion.overlay()) +
             scaleIn(initialScale = 0.96f, animationSpec = WormHoleMotion.popup()) +
-            slideInVertically(animationSpec = WormHoleMotion.popup()) { -48 },
+            slideInVertically(animationSpec = WormHoleMotion.popup()) { 48 },
         exit = fadeOut(animationSpec = WormHoleMotion.fadeOut()) +
             scaleOut(targetScale = 0.97f, animationSpec = WormHoleMotion.snappy()) +
-            slideOutVertically(animationSpec = WormHoleMotion.snappy()) { -32 },
+            slideOutVertically(animationSpec = WormHoleMotion.snappy()) { 32 },
         modifier = modifier,
     ) {
         Box(
@@ -166,16 +192,6 @@ fun CommandBar(
                         translationY = slide
                     },
             ) {
-                SearchHeader(
-                    query = query,
-                    mode = mode,
-                    searchEngine = searchEngine,
-                    onQueryChange = onQueryChange,
-                    onSubmit = onSubmit,
-                    onDismiss = onDismiss,
-                    requestFocus = isOpen,
-                )
-
                 AnimatedContent(
                     targetState = query.isBlank(),
                     transitionSpec = {
@@ -191,13 +207,17 @@ fun CommandBar(
                         IdleCommandBody(
                             mode = mode,
                             onModeChange = onModeChange,
-                            recentSearches = recentSearches,
+                            recentSearches = when {
+                                recentSearches.isNotEmpty() -> recentSearches
+                                hasStoredRecentSearches -> emptyList()
+                                else -> DefaultRecentSearches
+                            },
                             onRecentClick = onSubmit,
                             onFillQuery = onFillQuery,
                             onClearRecentSearches = onClearRecentSearches,
-                            trending = trendingSearches,
+                            trending = DefaultTrendingSearches,
                             onTrendingClick = onSubmit,
-                            shortcuts = shortcuts,
+                            shortcuts = shortcuts.ifEmpty { DefaultQuickAccess },
                             onShortcutClick = onShortcutClick,
                             onAddShortcut = { showAddShortcut = true },
                         )
@@ -212,6 +232,17 @@ fun CommandBar(
                         )
                     }
                 }
+
+                SearchHeader(
+                    query = query,
+                    mode = mode,
+                    searchEngine = searchEngine,
+                    onQueryChange = onQueryChange,
+                    onSubmit = onSubmit,
+                    onDismiss = onDismiss,
+                    requestFocus = isOpen,
+                    onEngineSelected = onEngineSelected,
+                )
             }
         }
     }
@@ -236,10 +267,13 @@ private fun SearchHeader(
     onSubmit: (String) -> Unit,
     onDismiss: () -> Unit,
     requestFocus: Boolean,
+    onEngineSelected: (SearchEngine) -> Unit = {},
+    trendingSearches: List<String> = emptyList(),
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val accent = MaterialTheme.colorScheme.primary
+    var showEnginePicker by remember { mutableStateOf(false) }
 
     var fieldValue by remember(requestFocus) {
         mutableStateOf(TextFieldValue(text = query, selection = TextRange(0, query.length)))
@@ -266,8 +300,8 @@ private fun SearchHeader(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = WormHoleSurface.FillRaised,
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
             border = WormHoleSurface.border(),
             modifier = Modifier
                 .weight(1f)
@@ -280,15 +314,10 @@ private fun SearchHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (mode == CommandBarMode.SEARCH) {
+                Box(
+                    modifier = Modifier.bouncyClickable(onClick = { showEnginePicker = true }),
+                ) {
                     SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(20.dp))
-                } else {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(20.dp),
-                    )
                 }
                 CompositionLocalProvider(
                     LocalTextSelectionColors provides TextSelectionColors(
@@ -311,7 +340,10 @@ private fun SearchHeader(
                         ),
                         cursorBrush = SolidColor(accent),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { onSubmit(fieldValue.text) }),
+                        keyboardActions = KeyboardActions(onGo = {
+                            keyboardController?.hide()
+                            onSubmit(fieldValue.text)
+                        }),
                         decorationBox = { inner ->
                             if (fieldValue.text.isEmpty()) {
                                 Text(
@@ -352,8 +384,18 @@ private fun SearchHeader(
             "Cancel",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = accent,
-            modifier = Modifier.bouncyClickable(onClick = onDismiss),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.bouncyClickable(onClick = {
+                keyboardController?.hide()
+                onDismiss()
+            }),
+        )
+    }
+    if (showEnginePicker) {
+        SearchEnginePicker(
+            current = searchEngine,
+            onSelected = onEngineSelected,
+            onDismiss = { showEnginePicker = false },
         )
     }
 }
@@ -398,7 +440,7 @@ private fun IdleCommandBody(
             recentSearches.take(6).forEachIndexed { index, term ->
                 if (index > 0) {
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.06f),
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
@@ -410,24 +452,22 @@ private fun IdleCommandBody(
             }
         }
 
-        if (trending.isNotEmpty()) {
-            Spacer(Modifier.height(18.dp))
-            SectionHeader(title = "Trending searches")
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                maxItemsInEachRow = 2,
-            ) {
-                trending.forEach { term ->
-                    TrendingChip(
-                        term = term,
-                        onClick = { onTrendingClick(term) },
-                        modifier = Modifier.fillMaxWidth(0.48f),
-                    )
-                }
+        Spacer(Modifier.height(18.dp))
+        SectionHeader(title = "Trending searches")
+        FlowRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            trending.forEach { term ->
+                TrendingChip(
+                    term = term,
+                    onClick = { onTrendingClick(term) },
+                    modifier = Modifier.fillMaxWidth(0.48f),
+                )
             }
         }
 
