@@ -88,6 +88,17 @@ fun WormHoleGeckoViewHost(
 
         session.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStart(session: GeckoSession, url: String) {
+                runCatching {
+                    val activity = context as? android.app.Activity
+                    val token = activity?.currentFocus?.windowToken
+                        ?: activity?.window?.decorView?.windowToken
+                    if (token != null) {
+                        val imm = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                            as android.view.inputmethod.InputMethodManager
+                        imm.hideSoftInputFromWindow(token, 0)
+                    }
+                    activity?.currentFocus?.clearFocus()
+                }
                 if (url.isBlank() || NavigationUrls.isAboutBlank(url)) return
                 lastSeenUrl = url
                 sessionPool.markRequested(tab.id, url)

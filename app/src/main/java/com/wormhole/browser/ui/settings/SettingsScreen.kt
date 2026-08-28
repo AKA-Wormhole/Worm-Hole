@@ -76,6 +76,8 @@ import com.wormhole.browser.ui.theme.bouncyClickable
 fun SettingsScreen(
     currentEngine: SearchEngine,
     onEngineSelected: (SearchEngine) -> Unit,
+    homeBackground: com.wormhole.browser.core.settings.HomeBackground = com.wormhole.browser.core.settings.HomeBackground.DEFAULT,
+    onHomeBackgroundSelected: (com.wormhole.browser.core.settings.HomeBackground) -> Unit = {},
     geminiApiKey: String,
     onGeminiApiKeyChanged: (String) -> Unit,
     trackerBlockingEnabled: Boolean,
@@ -190,6 +192,17 @@ fun SettingsScreen(
                 )
             }
 
+
+            SettingsGroup(title = "Home background") {
+                com.wormhole.browser.core.settings.HomeBackground.entries.forEach { bg ->
+                    SelectableRow(
+                        title = bg.displayName,
+                        isSelected = bg == homeBackground,
+                        onClick = { onHomeBackgroundSelected(bg) },
+                    )
+                }
+            }
+
             SettingsGroup(title = "Search engine") {
                 SearchEngine.entries.forEach { engine ->
                     SelectableRow(
@@ -199,13 +212,6 @@ fun SettingsScreen(
                         onClick = { onEngineSelected(engine) },
                     )
                 }
-            }
-
-            SettingsGroup(title = "Assistant") {
-                GeminiApiKeyField(
-                    value = geminiApiKey,
-                    onValueChange = onGeminiApiKeyChanged,
-                )
             }
 
             if (hasDiagnosticReport) {

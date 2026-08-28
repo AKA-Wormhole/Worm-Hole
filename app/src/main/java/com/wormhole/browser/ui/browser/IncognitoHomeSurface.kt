@@ -73,13 +73,14 @@ fun IncognitoHomeSurface(
 ) {
     val ink = Color.White.copy(alpha = 0.92f)
     val muted = Color.White.copy(alpha = 0.55f)
-    val pill = Color(0xFF1C1C1C)
+    val pill = Color(0xFF3F266F)
     var menuAnchorBounds by remember { mutableStateOf<Rect?>(null) }
+    var showActivityInfo by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
+            .background(Color(0xFF2B1066))
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
@@ -97,7 +98,7 @@ fun IncognitoHomeSurface(
             )
 
             Text(
-                "You're browsing privately",
+                "Browse privately",
                 style = MaterialTheme.typography.headlineSmall.copy(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
@@ -107,13 +108,23 @@ fun IncognitoHomeSurface(
                 modifier = Modifier.padding(top = 20.dp),
             )
             Text(
-                "Your browsing history won't be saved on this device.",
+                "Your activity won’t be visible on this device.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = muted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(top = 8.dp)
-                    .widthIn(max = 320.dp),
+                    .widthIn(max = 320.dp)
+                    .bouncyClickable(onClick = { showActivityInfo = true }),
+            )
+            Text(
+                "Learn more",
+                style = MaterialTheme.typography.labelLarge,
+                color = ink,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .bouncyClickable(onClick = { showActivityInfo = true }),
             )
 
             // Dark search pill — same rounded shape as normal home, darker fill
@@ -235,6 +246,25 @@ fun IncognitoHomeSurface(
                 anchorBounds = menuAnchorBounds,
             )
         }
+    }
+
+    if (showActivityInfo) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showActivityInfo = false },
+            title = { Text("Who can see your activity") },
+            text = {
+                Text(
+                    "Wormhole does not save private-tab history, cookies, or form data on this device after you close those tabs.\n\n" +
+                        "Websites you visit can still see that visit. Your school, workplace, or internet provider can still see the sites you open. " +
+                        "Signed-in accounts on a site can still show that activity.",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { showActivityInfo = false }) {
+                    Text("Got it")
+                }
+            },
+        )
     }
 }
 

@@ -103,12 +103,16 @@ object FaviconCache {
     fun fetchAndCache(keyUrl: String, directLogoUrl: String? = null) {
         val host = hostOf(keyUrl)
         if (host.isBlank()) return
-        if (favicons[host] != null) return
+        val existing = favicons[host]
+        if (existing != null && !existing.isRecycled && existing.width >= 64) return
         ioScope.launch {
             val urls = listOfNotNull(
                 directLogoUrl,
+                "https://www.google.com/s2/favicons?sz=128&domain_url=https://$host",
+                "https://www.google.com/s2/favicons?sz=128&domain=$host",
+                "https://icons.duckduckgo.com/ip3/$host.ico",
+                keyUrl.trimEnd('/') + "/apple-touch-icon.png",
                 keyUrl.trimEnd('/') + "/favicon.ico",
-                "https://www.google.com/s2/favicons?domain=${host}&sz=64",
             )
             for (u in urls) {
                 val bmp = runCatching {

@@ -2,6 +2,8 @@
 
 package com.wormhole.browser.ui.browser
 
+import com.wormhole.browser.core.settings.SearchEngine
+
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -69,6 +71,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
@@ -138,6 +141,7 @@ fun BrowserScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentEngine by viewModel.searchEngine.collectAsState()
+    val homeBackground by viewModel.homeBackground.collectAsState()
     val dynamicBackgroundEnabled by viewModel.dynamicBackgroundEnabled.collectAsState()
     val geminiApiKey by viewModel.geminiApiKey.collectAsState()
     val assistantState by viewModel.assistantState.collectAsState()
@@ -782,7 +786,7 @@ fun BrowserScreen(
                         }
                     } else if (activeTab.isIncognito) {
                         IncognitoHomeSurface(
-                            tabCount = uiState.tabs.count { it.isIncognito },
+                            tabCount = uiState.tabs.count { it.isIncognito && it.url.isNotBlank() },
                             onSearchClick = {
                                 commandBarQuery = ""
                                 commandBarMode = CommandBarMode.SEARCH
@@ -838,7 +842,9 @@ fun BrowserScreen(
                                 viewModel.updateTabUrl(tab.id, entry.url)
                             },
                             searchEngine = currentEngine,
-                            tabCount = uiState.tabs.size,
+                            onEngineSelected = viewModel::setSearchEngine,
+                            homeBackground = homeBackground,
+                            tabCount = uiState.tabs.count { it.url.isNotBlank() },
                             onTabSwitcherClick = { isTabSwitcherOpen = true },
                             canGoBack = activeTab?.canGoBack == true,
                             canGoForward = activeTab?.canGoForward == true,
@@ -904,9 +910,11 @@ fun BrowserScreen(
                 // accurate. Visibility is driven purely by toolbarOffset (hide = slide down).
                 if (activeTab?.url?.isNotBlank() == true) {
                 BottomBar(
+                    searchEngine = currentEngine,
+                    onEngineSelected = viewModel::setSearchEngine,
                     isMenuOpen = isPageToolsMenuOpen,
                     isDesktopSiteEnabled = isDesktopSiteEnabled,
-                    tabCount = uiState.tabs.size,
+                    tabCount = uiState.tabs.count { it.url.isNotBlank() },
                     displayUrl = activeTab?.displayUrl.orEmpty(),
                     isSecure = activeTab?.isSecure == true,
                     onAddressBarClick = {
@@ -1521,6 +1529,8 @@ fun BrowserScreen(
             SettingsScreen(
                 currentEngine = currentEngine,
                 onEngineSelected = viewModel::setSearchEngine,
+                homeBackground = homeBackground,
+                onHomeBackgroundSelected = viewModel::setHomeBackground,
                 geminiApiKey = geminiApiKey,
                 onGeminiApiKeyChanged = viewModel::setGeminiApiKey,
                 trackerBlockingEnabled = trackerBlockingEnabled,
@@ -1702,6 +1712,8 @@ fun BrowserScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BottomBar(
+    searchEngine: SearchEngine = SearchEngine.DEFAULT,
+    onEngineSelected: (SearchEngine) -> Unit = {},
     tabCount: Int,
     displayUrl: String,
     isSecure: Boolean,
@@ -1742,6 +1754,7 @@ private fun BottomBar(
 
     val adaptiveIconColor = MaterialTheme.colorScheme.onSurface
     val accent = MaterialTheme.colorScheme.onSurface
+    var showEnginePicker by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
     Column(
@@ -1762,25 +1775,8 @@ private fun BottomBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = if (canGoBack) accent else adaptiveIconColor.copy(alpha = 0.35f),
-                modifier = Modifier
-                    .size(22.dp)
-                    .bouncyClickable(onClick = onBackClick),
-            )
-
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Forward",
-                tint = if (canGoForward) accent else adaptiveIconColor.copy(alpha = 0.35f),
-                modifier = Modifier
-                    .size(22.dp)
-                    .bouncyClickable(onClick = onForwardClick),
-            )
-
-            // Search / address pill. The small leading icon opens the AI sheet directly;
+            // Search / address pill.
+ The small leading icon opens the AI sheet directly;
             // tapping the rest of the pill opens the normal search/address bar.
             Surface(
                 shape = RoundedCornerShape(50),
@@ -1803,14 +1799,9 @@ private fun BottomBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_wormhole_glyph),
-                        contentDescription = "Ask AI",
-                        tint = accent,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .bouncyClickable(onClick = onAssistantClick),
-                    )
+                    Box(Modifier.bouncyClickable(onClick = { showEnginePicker = true })) {
+                        SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(18.dp))
+                    }
                     if (isSecure) {
                         Icon(
                             Icons.Default.Lock,
@@ -1866,6 +1857,15 @@ private fun BottomBar(
             }
 
             Icon(
+                Icons.Default.Add,
+                contentDescription = "New tab",
+                tint = adaptiveIconColor,
+                modifier = Modifier
+                    .size(22.dp)
+                    .bouncyClickable(onClick = onNewTabFromBarClick),
+            )
+
+            Icon(
                 Icons.Default.Menu,
                 contentDescription = "Menu",
                 tint = adaptiveIconColor,
@@ -1875,8 +1875,19 @@ private fun BottomBar(
             )
         }
     }
+    if (showEnginePicker) {
+        SearchEnginePicker(
+            current = searchEngine,
+            onSelected = onEngineSelected,
+            onDismiss = { showEnginePicker = false },
+        )
+    }
     PageToolsMenu(
         isExpanded = isMenuOpen,
+        canGoBack = canGoBack,
+        canGoForward = canGoForward,
+        onBackClick = onBackClick,
+        onForwardClick = onForwardClick,
         onReloadClick = onReloadClick,
         isDesktopSiteEnabled = isDesktopSiteEnabled,
         onDismiss = onMenuDismiss,
@@ -1916,7 +1927,13 @@ private fun TabSwitcherOverlay(
     var selectionMode by remember { mutableStateOf(false) }
     var isOverflowMenuOpen by remember { mutableStateOf(false) }
     var showCloseAllConfirm by remember { mutableStateOf(false) }
-    val visibleTabs = tabs.filter { it.isIncognito == incognito }
+    var tabQuery by remember { mutableStateOf("") }
+    val visibleTabs = tabs.filter { it.isIncognito == incognito && it.url.isNotBlank() }
+        .filter {
+            tabQuery.isBlank() ||
+                it.title.contains(tabQuery, ignoreCase = true) ||
+                it.url.contains(tabQuery, ignoreCase = true)
+        }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -1959,13 +1976,13 @@ private fun TabSwitcherOverlay(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TabModeChip(
-                            text = "${tabs.count { !it.isIncognito }} Tabs",
+                            text = "${tabs.count { !it.isIncognito && it.url.isNotBlank() }} Tabs",
                             selected = !incognito,
                             onClick = { incognito = false },
                             modifier = Modifier.weight(1f),
                         )
                         TabModeChip(
-                            text = "Incognito",
+                            text = "${tabs.count { it.isIncognito && it.url.isNotBlank() }} Incognito",
                             selected = incognito,
                             onClick = { incognito = true },
                             modifier = Modifier.weight(1f),
@@ -2011,6 +2028,31 @@ private fun TabSwitcherOverlay(
                         Text("Cancel")
                     }
                 }
+            }
+
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 8.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainer),
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = tabQuery,
+                    onValueChange = { tabQuery = it },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    decorationBox = { inner ->
+                        if (tabQuery.isEmpty()) {
+                            Text("Search tabs", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        inner()
+                    },
+                )
             }
 
             if (visibleTabs.isEmpty()) {
@@ -2208,7 +2250,7 @@ private fun TabGridCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(178.dp)
+                    .height(210.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 if (thumbnail != null) {
@@ -2223,10 +2265,11 @@ private fun TabGridCard(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            tab.title.firstOrNull()?.uppercase() ?: "K",
-                            style = MaterialTheme.typography.displaySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        Icon(
+                            Icons.Default.Public,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(36.dp),
                         )
                     }
                 }

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -149,6 +150,9 @@ fun NewTabSurface(
     onHistoryClick: (LibraryEntry) -> Unit,
 
     searchEngine: SearchEngine = SearchEngine.DEFAULT,
+    onEngineSelected: (SearchEngine) -> Unit = {},
+    homeBackground: com.wormhole.browser.core.settings.HomeBackground =
+        com.wormhole.browser.core.settings.HomeBackground.DEFAULT,
     modifier: Modifier = Modifier,
 
     tabCount: Int = 1,
@@ -170,6 +174,7 @@ fun NewTabSurface(
     onNewIncognitoTabClick: () -> Unit = {},
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
+    var showEnginePicker by remember { mutableStateOf(false) }
     var menuAnchorBounds by remember { mutableStateOf<Rect?>(null) }
     val onBackground = MaterialTheme.colorScheme.onBackground
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -196,19 +201,29 @@ fun NewTabSurface(
         }
     }
 
+    val solidHome = when (homeBackground) {
+        com.wormhole.browser.core.settings.HomeBackground.PHOTON ->
+            if (isDarkChrome) Color(0xFF1C1B22) else Color(0xFFF9F9FB)
+        com.wormhole.browser.core.settings.HomeBackground.VIOLET -> Color(0xFF2B1066)
+        com.wormhole.browser.core.settings.HomeBackground.NAVY -> Color(0xFF0F1B3D)
+        com.wormhole.browser.core.settings.HomeBackground.PAPER -> Color(0xFFF4EFE6)
+        else -> null
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isDarkChrome) Color.Black else Color(0xFFE8F2FF)),
+            .background(solidHome ?: if (isDarkChrome) Color.Black else Color(0xFFE8F2FF)),
     ) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(
-                if (isDarkChrome) R.drawable.bg_starfield else R.drawable.bg_home_light,
-            ),
-            contentDescription = null,
-            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (solidHome == null) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(
+                    if (isDarkChrome) R.drawable.bg_starfield else R.drawable.bg_home_light,
+                ),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -230,72 +245,31 @@ fun NewTabSurface(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "WORM HOLE",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp,
+                    text = "Wormhole",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = onBackground,
                 )
 
                 Icon(
-                    Icons.Default.Settings,
-                    contentDescription = "Settings",
+                    Icons.Default.Shield,
+                    contentDescription = "Incognito",
                     tint = onBackground,
                     modifier = Modifier
-                        .size(20.dp)
-                        .bouncyClickable(onClick = onSettingsClick),
+                        .size(22.dp)
+                        .bouncyClickable(onClick = onNewIncognitoTabClick),
                 )
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(22.dp))
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Good evening",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = onBackground,
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = tileFill,
-                border = androidx.compose.foundation.BorderStroke(1.dp, hairline),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .bouncyClickable(onClick = onCommandBarRequested),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(11.dp),
-                ) {
-                    SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(22.dp))
-                    Text(
-                        "Search ${searchEngine.displayName} or type a URL",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = muted,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    VoiceMicButton(
-                        onResult = onVoiceSearch,
-                        tint = muted,
-                        iconSize = 20.dp,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
+            Text(
+                "Shortcuts",
+                style = MaterialTheme.typography.titleSmall,
+                color = muted,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -313,46 +287,22 @@ fun NewTabSurface(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(22.dp))
+
+            history.firstOrNull()?.let { entry ->
+                ContinueBrowsingCard(
+                    entry = entry,
+                    onOpen = { onHistoryClick(entry) },
+                    onOpenHistory = onOpenHistoryLibrary,
+                )
+                Spacer(Modifier.height(16.dp))
+            }
 
             if (trendingSearches.isNotEmpty()) {
                 TrendingCard(
-                    terms = trendingSearches.take(5),
+                    terms = trendingSearches.take(6),
                     onTermClick = onTrendingSearch,
                 )
-            }
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = history.isNotEmpty(),
-                enter = androidx.compose.animation.fadeIn(WormHoleMotion.fadeIn()) + androidx.compose.animation.expandVertically(WormHoleMotion.settled()),
-                exit = androidx.compose.animation.fadeOut(WormHoleMotion.fadeOut()) + androidx.compose.animation.shrinkVertically(WormHoleMotion.settled()),
-            ) {
-                Column {
-                    Spacer(Modifier.height(14.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        history.getOrNull(0)?.let { entry ->
-                            HistoryCard(
-                                title = "Continue browsing",
-                                icon = Icons.Default.History,
-                                entry = entry,
-                                onClick = { onHistoryClick(entry) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        history.getOrNull(1)?.let { entry ->
-                            HistoryCard(
-                                title = "From your devices",
-                                icon = Icons.Default.Devices,
-                                entry = entry,
-                                onClick = { onHistoryClick(entry) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -368,47 +318,47 @@ fun NewTabSurface(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = if (canGoBack) accent else muted.copy(alpha = 0.5f),
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = tileFill,
+                border = androidx.compose.foundation.BorderStroke(1.dp, hairline),
                 modifier = Modifier
-                    .size(24.dp)
-                    .bouncyClickable(onClick = onBackClick),
-            )
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = "Forward",
-                tint = if (canGoForward) accent else muted.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .size(24.dp)
-                    .bouncyClickable(onClick = onForwardClick),
-            )
-            Icon(
-                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_wormhole_glyph),
-                contentDescription = "Ask assistant",
-                tint = accent,
-                modifier = Modifier
-                    .size(30.dp)
-                    .bouncyClickable(onClick = onAskWormHoleClick),
-            )
+                    .weight(1f)
+                    .height(48.dp)
+                    .bouncyClickable(onClick = onCommandBarRequested),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Box(Modifier.bouncyClickable(onClick = { showEnginePicker = true })) {
+                        SearchEngineLogo(engine = searchEngine, modifier = Modifier.size(20.dp))
+                    }
+                    Text(
+                        "Search or type URL",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
-                    .size(26.dp)
-                    .border(width = 1.6.dp, color = onBackground, shape = RoundedCornerShape(6.dp))
-                    .bouncyClickable(
-                        contentDescription = "Tab switcher, ${tabCount.coerceAtLeast(1)} " +
-                            if (tabCount.coerceAtLeast(1) == 1) "tab open" else "tabs open",
-                        onClick = onTabSwitcherClick,
-                    ),
+                    .size(36.dp)
+                    .border(1.6.dp, onBackground, RoundedCornerShape(8.dp))
+                    .bouncyClickable(onClick = onTabSwitcherClick),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = tabCount.coerceAtLeast(1).toString(),
+                    text = tabCount.coerceAtLeast(0).toString(),
                     style = MaterialTheme.typography.labelMedium,
                     color = onBackground,
                 )
@@ -420,8 +370,7 @@ fun NewTabSurface(
                 modifier = Modifier
                     .size(24.dp)
                     .onGloballyPositioned { coords ->
-                        val bounds = coords.boundsInWindow()
-                        menuAnchorBounds = bounds
+                        menuAnchorBounds = coords.boundsInWindow()
                     }
                     .bouncyClickable(onClick = onMenuButtonClick),
             )
@@ -439,6 +388,14 @@ fun NewTabSurface(
             anchorBounds = menuAnchorBounds,
         )
         }
+    }
+
+    if (showEnginePicker) {
+        SearchEnginePicker(
+            current = searchEngine,
+            onSelected = onEngineSelected,
+            onDismiss = { showEnginePicker = false },
+        )
     }
 
     if (showAddDialog) {
@@ -563,6 +520,80 @@ private fun HistoryCard(
 }
 
 @Composable
+private fun ContinueBrowsingCard(
+    entry: LibraryEntry,
+    onOpen: () -> Unit,
+    onOpenHistory: () -> Unit,
+) {
+    androidx.compose.runtime.LaunchedEffect(entry.url) {
+        FaviconCache.fetchAndCache(entry.url)
+    }
+    val favicon = FaviconCache.get(entry.url)
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = if (homeIsDark()) Color(0xFF141414) else Color.White,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (homeIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bouncyClickable(onClick = onOpen),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        if (homeIsDark()) Color(0xFF222222) else Color(0xFFF2F2F2),
+                        RoundedCornerShape(12.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (favicon != null && !favicon.isRecycled) {
+                    androidx.compose.foundation.Image(
+                        bitmap = favicon.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                    )
+                } else {
+                    Text(
+                        entry.title.firstOrNull()?.uppercase() ?: "W",
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Continue browsing", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    entry.title.ifBlank { entry.url },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    entry.url,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "History",
+                modifier = Modifier.bouncyClickable(onClick = onOpenHistory),
+            )
+        }
+    }
+}
+
+@Composable
 private fun ShortcutGlyph(shortcut: ShortcutEntry, modifier: Modifier = Modifier) {
     val favicon = FaviconCache.get(shortcut.url)
     val host = try { URI(shortcut.url).host?.removePrefix("www.")?.lowercase() ?: "" } catch (_: Exception) { "" }
@@ -645,6 +676,9 @@ private fun ShortcutTile(
 ) {
     var showRemoveConfirm by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
+    androidx.compose.runtime.LaunchedEffect(shortcut.url) {
+        FaviconCache.fetchAndCache(shortcut.url)
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

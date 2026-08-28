@@ -138,6 +138,17 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    val homeBackground: Flow<HomeBackground> =
+        context.settingsDataStore.data.map { prefs ->
+            HomeBackground.fromId(prefs[HOME_BACKGROUND_KEY])
+        }
+
+    suspend fun setHomeBackground(background: HomeBackground) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[HOME_BACKGROUND_KEY] = background.id
+        }
+    }
+
     val homepageUrl: Flow<String> =
         context.settingsDataStore.data.map { prefs ->
             prefs[HOMEPAGE_URL_KEY].orEmpty()
@@ -152,6 +163,7 @@ class SettingsRepository(private val context: Context) {
     companion object {
         private val WEB_DARK_MODE_KEY = booleanPreferencesKey("web_dark_mode_enabled")
         private val HOMEPAGE_URL_KEY = stringPreferencesKey("homepage_url")
+        private val HOME_BACKGROUND_KEY = stringPreferencesKey("home_background")
         private val SEARCH_ENGINE_KEY = stringPreferencesKey("search_engine")
         private val THEME_MODE_KEY = stringPreferencesKey("theme_mode")
         private val GEMINI_API_KEY_KEY = stringPreferencesKey("gemini_api_key")

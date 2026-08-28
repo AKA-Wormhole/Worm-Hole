@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Bookmarks
@@ -68,6 +70,10 @@ import com.wormhole.browser.ui.theme.bouncyClickable
 @Composable
 fun PageToolsMenu(
     isExpanded: Boolean,
+    canGoBack: Boolean = false,
+    canGoForward: Boolean = false,
+    onBackClick: () -> Unit = {},
+    onForwardClick: () -> Unit = {},
     onReloadClick: () -> Unit,
     isDesktopSiteEnabled: Boolean,
     onDismiss: () -> Unit,
@@ -89,56 +95,19 @@ fun PageToolsMenu(
     onShareClick: () -> Unit = {},
     onCopyLinkClick: () -> Unit = {},
 ) {
-    val visibleState = remember { MutableTransitionState(false) }
-    visibleState.targetState = isExpanded
-    if (!visibleState.currentState && !visibleState.targetState) return
+    if (!isExpanded) return
 
-    val configuration = LocalConfiguration.current
-    val menuWidth = minOf(268.dp, configuration.screenWidthDp.dp * 0.92f)
-    val maxMenuHeight = (configuration.screenHeightDp.dp * 0.62f)
-    val aboveBar = remember {
-        object : PopupPositionProvider {
-            override fun calculatePosition(
-                anchorBounds: IntRect,
-                windowSize: IntSize,
-                layoutDirection: LayoutDirection,
-                popupContentSize: IntSize,
-            ): IntOffset {
-                val gap = 12
-                val x = (windowSize.width - popupContentSize.width - 16)
-                    .coerceAtLeast(12)
-                val y = (anchorBounds.top - popupContentSize.height - gap)
-                    .coerceAtLeast(12)
-                return IntOffset(x, y)
-            }
-        }
-    }
-
-    Popup(
-        popupPositionProvider = aboveBar,
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        AnimatedVisibility(
-            visibleState = visibleState,
-            enter = fadeIn(WormHoleMotion.overlay()) +
-                scaleIn(initialScale = 0.94f, animationSpec = WormHoleMotion.popup()),
-            exit = fadeOut(WormHoleMotion.fadeOut()) +
-                scaleOut(targetScale = 0.96f, animationSpec = WormHoleMotion.snappy()),
-        ) {
-            Surface(
-                shape = WormHoleSurface.CardShape,
-                color = WormHoleSurface.Fill,
-                border = WormHoleSurface.border(),
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .width(menuWidth)
-                    .heightIn(max = maxMenuHeight),
-            ) {
                 Column(
                     modifier = Modifier
-                        .heightIn(max = maxMenuHeight)
-                        .verticalScroll(rememberScrollState()),
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 24.dp),
                 ) {
 
                     Row(
@@ -172,6 +141,8 @@ fun PageToolsMenu(
 
                     MenuDivider()
 
+                    MenuItem(text = "Back", icon = Icons.AutoMirrored.Filled.ArrowBack, onClick = { onBackClick(); onDismiss() })
+                    MenuItem(text = "Forward", icon = Icons.AutoMirrored.Filled.ArrowForward, onClick = { onForwardClick(); onDismiss() })
                     MenuItem(text = "Reload", icon = Icons.Default.Refresh, onClick = { onReloadClick(); onDismiss() })
 
                     MenuDivider()
@@ -185,12 +156,6 @@ fun PageToolsMenu(
                     )
                     MenuItem(text = "Translate", icon = Icons.Default.Translate, onClick = { onTranslateClick(); onDismiss() })
                     MenuItem(text = "Find in page", icon = Icons.Default.Search, onClick = { onFindInPageClick(); onDismiss() })
-                    MenuItem(
-                        text = "WormHole AI",
-                        iconPainter = androidx.compose.ui.res.painterResource(com.wormhole.browser.R.drawable.ic_wormhole_glyph),
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        onClick = { onAssistantClick(); onDismiss() },
-                    )
 
                     MenuDivider()
 
@@ -204,8 +169,6 @@ fun PageToolsMenu(
 
                     MenuItem(text = "Settings", icon = Icons.Default.Settings, onClick = { onSettingsClick(); onDismiss() })
                 }
-            }
-        }
     }
 }
 

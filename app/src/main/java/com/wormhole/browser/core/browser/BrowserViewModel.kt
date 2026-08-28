@@ -12,6 +12,7 @@ import com.wormhole.browser.core.library.LibraryRepository
 import com.wormhole.browser.core.library.SearchQuerySuggestion
 import com.wormhole.browser.core.library.ShortcutEntry
 import com.wormhole.browser.core.search.SearchSuggestionsClient
+import com.wormhole.browser.core.settings.HomeBackground
 import com.wormhole.browser.core.settings.SearchEngine
 import com.wormhole.browser.core.settings.SettingsRepository
 import com.wormhole.browser.core.settings.ThemeMode
@@ -127,6 +128,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.DEFAULT)
 
+    val homeBackground: StateFlow<HomeBackground> = settingsRepository.homeBackground
+        .stateIn(viewModelScope, SharingStarted.Eagerly, HomeBackground.DEFAULT)
+
     val geminiApiKey: StateFlow<String> = settingsRepository.geminiApiKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -232,6 +236,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun setSearchEngine(engine: SearchEngine) {
         viewModelScope.launch { settingsRepository.setSearchEngine(engine) }
+    }
+
+    fun setHomeBackground(background: HomeBackground) {
+        viewModelScope.launch { settingsRepository.setHomeBackground(background) }
     }
 
     fun setThemeMode(mode: ThemeMode) {

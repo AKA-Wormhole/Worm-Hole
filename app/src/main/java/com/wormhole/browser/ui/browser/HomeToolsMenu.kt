@@ -75,68 +75,19 @@ fun HomeToolsMenu(
     // above the menu button that was actually tapped.
     anchorBounds: Rect? = null,
 ) {
-    val visibleState = remember { MutableTransitionState(false) }
-    visibleState.targetState = isExpanded
-    if (!visibleState.currentState && !visibleState.targetState) return
+    if (!isExpanded) return
 
-    val configuration = LocalConfiguration.current
-    val menuWidth = minOf(268.dp, configuration.screenWidthDp.dp * 0.92f)
-    val maxMenuHeight = configuration.screenHeightDp.dp * 0.62f
-    val anchorBoundsPx = anchorBounds
-    val aboveBar = remember(anchorBounds) {
-        object : PopupPositionProvider {
-            override fun calculatePosition(
-                anchorBounds: IntRect,
-                windowSize: IntSize,
-                layoutDirection: LayoutDirection,
-                popupContentSize: IntSize,
-            ): IntOffset {
-                val gap = 12
-                // Prefer the real menu-button bounds captured at the call
-                // site over the Popup-supplied anchorBounds, which (absent
-                // an actual anchor layout) resolve to whatever oversized
-                // parent composable HomeToolsMenu happens to be a sibling
-                // of -- that mismatch was the root cause of the menu
-                // appearing in the wrong place.
-                val effectiveAnchor = anchorBounds.let { fallback ->
-                    anchorBoundsPx?.let {
-                        IntRect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())
-                    } ?: fallback
-                }
-                val x = (effectiveAnchor.right - popupContentSize.width)
-                    .coerceIn(12, (windowSize.width - popupContentSize.width - 12).coerceAtLeast(12))
-                val y = (effectiveAnchor.top - popupContentSize.height - gap)
-                    .coerceAtLeast(12)
-                return IntOffset(x, y)
-            }
-        }
-    }
-
-    Popup(
-        popupPositionProvider = aboveBar,
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        AnimatedVisibility(
-            visibleState = visibleState,
-            enter = fadeIn(WormHoleMotion.overlay()) +
-                scaleIn(initialScale = 0.94f, animationSpec = WormHoleMotion.popup()),
-            exit = fadeOut(WormHoleMotion.fadeOut()) +
-                scaleOut(targetScale = 0.96f, animationSpec = WormHoleMotion.snappy()),
-        ) {
-            Surface(
-                shape = WormHoleSurface.CardShape,
-                color = WormHoleSurface.Fill,
-                border = WormHoleSurface.border(),
-                shadowElevation = 8.dp,
-                modifier = Modifier
-                    .width(menuWidth)
-                    .heightIn(max = maxMenuHeight),
-            ) {
                 Column(
                     modifier = Modifier
-                        .heightIn(max = maxMenuHeight)
-                        .verticalScroll(rememberScrollState()),
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 24.dp),
                 ) {
                     Row(
                         modifier = Modifier
@@ -156,8 +107,6 @@ fun HomeToolsMenu(
                     HomeMenuItem(text = "New incognito tab", icon = Icons.Default.Shield, onClick = { onNewIncognitoTabClick(); onDismiss() })
                     HomeMenuItem(text = "Settings", icon = Icons.Default.Settings, onClick = { onSettingsClick(); onDismiss() })
                 }
-            }
-        }
     }
 }
 
