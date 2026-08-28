@@ -201,6 +201,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                         isBlankTab = persisted.isBlankTab,
                         sortOrder = persisted.sortOrder,
                         isIncognito = false,
+                        isPinned = persisted.isPinned,
                     )
                 }
                 _uiState.value = BrowserUiState(
@@ -224,7 +225,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             sessionStore.save(
                 PersistedSession(
                     tabs = state.tabs.filterNot { it.isIncognito }.map { tab ->
-                        PersistedTab(tab.id, tab.title, tab.url, tab.displayUrl, tab.faviconUrl, tab.spaceId, tab.createdAtMillis, tab.isBlankTab, tab.sortOrder, false)
+                        PersistedTab(tab.id, tab.title, tab.url, tab.displayUrl, tab.faviconUrl, tab.spaceId, tab.createdAtMillis, tab.isBlankTab, tab.sortOrder, false, tab.isPinned)
                     },
                     activeTabId = state.activeTabId,
                     activeSpaceId = state.activeSpaceId,
@@ -468,7 +469,16 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         return tab
     }
 
-    fun closeTab(tabId: String) {
+    fun setTabPinned(tabId: String, pinned: Boolean) {
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.id == tabId) it.copy(isPinned = pinned) else it })
+        }
+        persistSession()
+    }
+
+    fun closeTab(tabId: String, force: Boolean = false) {
+        val tab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        if (tab.isPinned && !force) return
         TabThumbnailCache.remove(tabId)
         _uiState.update { state ->
             val remaining = state.tabs.filterNot { it.id == tabId }
@@ -542,7 +552,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun closeAllTabsInSpace(spaceId: String, incognitoOnly: Boolean? = null) {
-        fun matches(tab: Tab) = tab.spaceId == spaceId && (incognitoOnly == null || tab.isIncognito == incognitoOnly)
+        fun matches(tab: Tab) = tab.spaceId == spaceId &&
+            !tab.isPinned &&
+            (incognitoOnly == null || tab.isIncognito == incognitoOnly)
 
         _uiState.value.tabs.filter(::matches).forEach {
             TabThumbnailCache.remove(it.id)

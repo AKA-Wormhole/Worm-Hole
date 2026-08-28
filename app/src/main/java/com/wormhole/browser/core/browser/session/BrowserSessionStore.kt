@@ -23,6 +23,7 @@ data class PersistedTab(
     val isBlankTab: Boolean,
     val sortOrder: Int,
     val isIncognito: Boolean = false,
+    val isPinned: Boolean = false,
 )
 
 @Serializable

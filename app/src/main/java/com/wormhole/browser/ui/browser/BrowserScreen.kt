@@ -1492,9 +1492,12 @@ fun BrowserScreen(
                     isTabSwitcherOpen = false
                 },
                 onTabClosed = { tabId ->
-
                     geckoSessionPool.remove(tabId)
                     viewModel.closeTab(tabId)
+                },
+                onForceCloseTab = { tabId ->
+                    geckoSessionPool.remove(tabId)
+                    viewModel.closeTab(tabId, force = true)
                 },
                 onNewTab = {
                     viewModel.newTab(spaceId = uiState.activeSpaceId)
@@ -1511,11 +1514,13 @@ fun BrowserScreen(
                 onClose = { isTabSwitcherOpen = false },
                 onCloseAllTabs = { closeIncognito ->
                     val idsToClose = uiState.visibleTabs
-                        .filter { it.isIncognito == closeIncognito }
+                        .filter { it.isIncognito == closeIncognito && !it.isPinned }
                         .map { it.id }
                     idsToClose.forEach { geckoSessionPool.remove(it) }
                     viewModel.closeAllTabsInSpace(uiState.activeSpaceId, incognitoOnly = closeIncognito)
                 },
+                onPinTab = { id, pinned -> viewModel.setTabPinned(id, pinned) },
+                onAddShortcut = { title, url -> viewModel.addShortcut(title, url) },
             )
         }
 
@@ -1917,11 +1922,14 @@ private fun TabSwitcherOverlay(
     activeTabId: String?,
     onTabSelected: (String) -> Unit,
     onTabClosed: (String) -> Unit,
+    onForceCloseTab: (String) -> Unit = onTabClosed,
     onNewTab: () -> Unit,
     onNewIncognitoTab: () -> Unit,
     onHistory: () -> Unit,
     onClose: () -> Unit,
     onCloseAllTabs: (incognito: Boolean) -> Unit = {},
+    onPinTab: (String, Boolean) -> Unit = { _, _ -> },
+    onAddShortcut: (title: String, url: String) -> Unit = { _, _ -> },
 ) {
     var incognito by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -1934,6 +1942,7 @@ private fun TabSwitcherOverlay(
                 it.title.contains(tabQuery, ignoreCase = true) ||
                 it.url.contains(tabQuery, ignoreCase = true)
         }
+        .sortedByDescending { it.isPinned }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -2108,6 +2117,11 @@ private fun TabSwitcherOverlay(
                             active = tab.id == activeTabId,
                             onClick = { onTabSelected(tab.id) },
                             onClose = { onTabClosed(tab.id) },
+                            onPin = { onPinTab(tab.id, !tab.isPinned) },
+                            onAddShortcut = {
+                                if (tab.url.isNotBlank()) onAddShortcut(tab.title.ifBlank { tab.url }, tab.url)
+                            },
+                            onRemove = { onForceCloseTab(tab.id) },
 
                             modifier = Modifier.animateItem(
                                 placementSpec = WormHoleMotion.bouncy(),
@@ -2211,6 +2225,9 @@ private fun TabGridCard(
     active: Boolean,
     onClick: () -> Unit,
     onClose: () -> Unit,
+    onPin: () -> Unit = {},
+    onAddShortcut: () -> Unit = {},
+    onRemove: () -> Unit = onClose,
     modifier: Modifier = Modifier,
 ) {
 
@@ -2220,6 +2237,9 @@ private fun TabGridCard(
     }
 
     var isClosing by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val closeScale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (isClosing) 0.75f else 1f,
         animationSpec = WormHoleMotion.settled(),
@@ -2245,7 +2265,10 @@ private fun TabGridCard(
                 scaleY = entranceScale.value * closeScale
                 alpha = closeAlpha
             }
-            .bouncyClickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { menuOpen = true },
+            ),
     ) {
         Column {
             Box(
@@ -2275,6 +2298,19 @@ private fun TabGridCard(
                     }
                 }
 
+                if (tab.isPinned) {
+                    Text(
+                        "Pinned",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+                if (!tab.isPinned) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
@@ -2290,6 +2326,52 @@ private fun TabGridCard(
                             contentDescription = "Close tab",
                             tint = MaterialTheme.colorScheme.background,
                             modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false; moreOpen = false },
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Remove") },
+                        onClick = { menuOpen = false; onRemove() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(if (tab.isPinned) "Unpin" else "Pin") },
+                        onClick = { menuOpen = false; onPin() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Add to shortcuts") },
+                        onClick = { menuOpen = false; onAddShortcut() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("More") },
+                        onClick = { moreOpen = true },
+                    )
+                    if (moreOpen) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = {
+                                menuOpen = false
+                                moreOpen = false
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, tab.url)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(send, "Share"))
+                            },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Copy link") },
+                            onClick = {
+                                menuOpen = false
+                                moreOpen = false
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                    as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Link", tab.url))
+                            },
                         )
                     }
                 }

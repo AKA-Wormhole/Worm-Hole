@@ -17,6 +17,7 @@ data class Tab(
     val spaceId: String = Space.DEFAULT_SPACE_ID,
 
     val isIncognito: Boolean = false,
+    val isPinned: Boolean = false,
     val createdAtMillis: Long = System.currentTimeMillis(),
 
     val isBlankTab: Boolean = true,
