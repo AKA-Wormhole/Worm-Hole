@@ -51,9 +51,11 @@ internal fun ContinueBrowsingRow(
     onOpen: (LibraryEntry) -> Unit,
     onOpenHistory: () -> Unit,
 ) {
-    val items = remember(history) { history.distinctBy { it.url }.take(3) }
+    val items = remember(history) { history.distinctBy { it.url }.take(8) }
     if (items.isEmpty()) return
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val cardWidth = ((screenWidth - 40.dp - 20.dp) / 3).coerceAtLeast(132.dp)
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Continue browsing",
@@ -62,13 +64,109 @@ internal fun ContinueBrowsingRow(
             muted = muted,
         )
         Spacer(Modifier.height(10.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items.forEach { entry ->
-                ContinueBrowsingCard(
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(end = 4.dp),
+        ) {
+            items(items, key = { it.url }) { entry ->
+                ContinueBrowsingPreviewCard(
                     entry = entry,
+                    width = cardWidth,
                     onOpen = { onOpen(entry) },
-                    onOpenHistory = onOpenHistory,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinueBrowsingPreviewCard(
+    entry: LibraryEntry,
+    width: androidx.compose.ui.unit.Dp,
+    onOpen: () -> Unit,
+) {
+    LaunchedEffect(entry.url) { FaviconCache.fetchAndCache(entry.url) }
+    val favicon = FaviconCache.get(entry.url)
+    val thumb = HistoryThumbnailCache.get(entry.url)
+    val dark = homeIsDark()
+    val host = try {
+        java.net.URI(entry.url).host?.removePrefix("www.") ?: entry.url
+    } catch (_: Exception) {
+        entry.url
+    }
+    val cardShape = RoundedCornerShape(16.dp)
+    Surface(
+        shape = cardShape,
+        color = continueCardFill(),
+        border = androidx.compose.foundation.BorderStroke(1.dp, continueCardStroke()),
+        modifier = Modifier
+            .width(width)
+            .clip(cardShape)
+            .bouncyClickable(onClick = onOpen),
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(88.dp)
+                    .background(continueThumbFill()),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (thumb != null && !thumb.isRecycled) {
+                    androidx.compose.foundation.Image(
+                        bitmap = thumb.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (favicon != null && !favicon.isRecycled) {
+                    androidx.compose.foundation.Image(
+                        bitmap = favicon.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                    )
+                } else {
+                    Text(
+                        entry.title.firstOrNull()?.uppercase() ?: "W",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = if (dark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.4f),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    entry.title.ifBlank { host },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (dark) Color.White else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    minLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (favicon != null && !favicon.isRecycled) {
+                        androidx.compose.foundation.Image(
+                            bitmap = favicon.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp).clip(RoundedCornerShape(3.dp)),
+                        )
+                    }
+                    Text(
+                        host,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (dark) Color.White.copy(alpha = 0.62f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
