@@ -206,8 +206,8 @@ object DiscoverClient {
                 .substringAfter(" | ", missingDelimiterValue = "news")
                 .ifBlank { "news.google.com" }
                 .lowercase()
-                .replace(' ', "")
-                .let { if ('.' in it) it else "$it.com" }
+                .replace(" ", "")
+                .let { cleaned -> if ('.' in cleaned) cleaned else "$cleaned.com" }
             val link = decodeXml(tag(item, "link").orEmpty()).trim()
             if (title.length < 12 || !link.startsWith("http")) return@mapNotNull null
             if (looksUnsafe(title)) return@mapNotNull null
