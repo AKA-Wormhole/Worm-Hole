@@ -148,6 +148,7 @@ fun BrowserScreen(
     val assistantState by viewModel.assistantState.collectAsState()
     val aiWorking = assistantState is AiRequestState.Loading
     val shortcuts by viewModel.shortcuts.collectAsState()
+    val bookmarks by viewModel.bookmarks.collectAsState()
     val recentSearches by viewModel.recentSearches.collectAsState()
     val hasStoredRecentSearches by viewModel.hasStoredRecentSearches.collectAsState()
     val trackerBlockingEnabled by viewModel.trackerBlockingEnabled.collectAsState()
@@ -841,6 +842,18 @@ fun BrowserScreen(
                                 val tab = activeTab ?: viewModel.newTab(spaceId = uiState.activeSpaceId)
                                 geckoSessionPool.requestLoad(tab.id, entry.url)
                                 viewModel.updateTabUrl(tab.id, entry.url)
+                            },
+                            bookmarks = bookmarks,
+                            onToggleBookmark = { title, url ->
+                                if (bookmarks.any { it.url == url }) viewModel.removeBookmark(url)
+                                else viewModel.addBookmark(
+                                    com.wormhole.browser.core.browser.Tab(
+                                        title = title,
+                                        url = url,
+                                        displayUrl = url,
+                                        isBlankTab = false,
+                                    ),
+                                )
                             },
                             searchEngine = currentEngine,
                             onEngineSelected = viewModel::setSearchEngine,

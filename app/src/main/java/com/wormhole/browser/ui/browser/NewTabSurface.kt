@@ -150,6 +150,8 @@ fun NewTabSurface(
     onAskWormHoleClick: () -> Unit,
 
     onHistoryClick: (LibraryEntry) -> Unit,
+    bookmarks: List<LibraryEntry> = emptyList(),
+    onToggleBookmark: (title: String, url: String) -> Unit = { _, _ -> },
 
     searchEngine: SearchEngine = SearchEngine.DEFAULT,
     onEngineSelected: (SearchEngine) -> Unit = {},
@@ -334,28 +336,21 @@ fun NewTabSurface(
 
             Spacer(Modifier.height(26.dp))
 
-            history.firstOrNull()?.let { entry ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Jump back in", style = MaterialTheme.typography.titleSmall, color = muted)
-                    Text(
-                        "Show all  >",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = muted,
-                        modifier = Modifier.bouncyClickable(onClick = onOpenHistoryLibrary),
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                ContinueBrowsingCard(
-                    entry = entry,
-                    onOpen = { onHistoryClick(entry) },
-                    onOpenHistory = onOpenHistoryLibrary,
-                )
-                Spacer(Modifier.height(16.dp))
-            }
+            ContinueBrowsingRow(
+                history = history,
+                onOpen = onHistoryClick,
+                onOpenHistory = onOpenHistoryLibrary,
+            )
+
+            Spacer(Modifier.height(22.dp))
+
+            DiscoverSection(
+                bookmarkedUrls = remember(bookmarks) { bookmarks.map { it.url }.toSet() },
+                onOpen = { story ->
+                    onHistoryClick(LibraryEntry(story.title, story.url, System.currentTimeMillis()))
+                },
+                onToggleBookmark = { story -> onToggleBookmark(story.title, story.url) },
+            )
 
             Spacer(Modifier.height(16.dp))
         }
@@ -544,7 +539,17 @@ private fun WeeklyVisitsPill(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun homeIsDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.45f
+internal fun homeIsDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.45f
+
+@Composable
+internal fun continueCardFill(): Color = if (homeIsDark()) Color(0xFF1E2A44) else Color.White
+
+@Composable
+internal fun continueCardStroke(): Color =
+    if (homeIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f)
+
+@Composable
+internal fun continueThumbFill(): Color = if (homeIsDark()) Color(0xFF12161F) else Color(0xFFF2F2F2)
 
 @Composable
 private fun homeTileFill(): Color = if (homeIsDark()) Color(0xFF141414) else Color.White
@@ -653,7 +658,7 @@ private fun HistoryCard(
 }
 
 @Composable
-private fun ContinueBrowsingCard(
+internal fun ContinueBrowsingCard(
     entry: LibraryEntry,
     onOpen: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -666,11 +671,8 @@ private fun ContinueBrowsingCard(
     val cardShape = RoundedCornerShape(16.dp)
     Surface(
         shape = cardShape,
-        color = if (homeIsDark()) Color(0xFF1E2A44) else Color.White,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (homeIsDark()) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.08f),
-        ),
+        color = continueCardFill(),
+        border = androidx.compose.foundation.BorderStroke(1.dp, continueCardStroke()),
         modifier = Modifier
             .fillMaxWidth()
             .clip(cardShape)
@@ -683,7 +685,7 @@ private fun ContinueBrowsingCard(
             Box(
                 modifier = Modifier
                     .size(width = 108.dp, height = 84.dp)
-                    .background(if (homeIsDark()) Color(0xFF12161F) else Color(0xFFF2F2F2)),
+                    .background(continueThumbFill()),
                 contentAlignment = Alignment.Center,
             ) {
                 if (pageThumbnail != null && !pageThumbnail.isRecycled) {
