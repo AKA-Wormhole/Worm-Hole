@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,7 +62,8 @@ internal fun ContinueBrowsingRow(
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Continue browsing",
-            action = "Show all  >",
+            action = null,
+            showArrow = true,
             onAction = onOpenHistory,
             muted = muted,
         )
@@ -235,7 +239,8 @@ internal fun DiscoverSection(
 @Composable
 private fun HomeSectionHeader(
     title: String,
-    action: String,
+    action: String? = null,
+    showArrow: Boolean = false,
     onAction: () -> Unit,
     muted: Color,
 ) {
@@ -245,12 +250,23 @@ private fun HomeSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.titleSmall, color = muted)
-        Text(
-            action,
-            style = MaterialTheme.typography.labelLarge,
-            color = muted,
-            modifier = Modifier.bouncyClickable(onClick = onAction),
-        )
+        if (showArrow) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Show all",
+                tint = muted,
+                modifier = Modifier
+                    .size(22.dp)
+                    .bouncyClickable(onClick = onAction),
+            )
+        } else if (!action.isNullOrBlank()) {
+            Text(
+                action,
+                style = MaterialTheme.typography.labelLarge,
+                color = muted,
+                modifier = Modifier.bouncyClickable(onClick = onAction),
+            )
+        }
     }
 }
 
