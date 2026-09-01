@@ -238,7 +238,7 @@ fun NewTabSurface(
 
                 .padding(horizontal = 20.dp)
 
-                .padding(bottom = 112.dp)
+                .padding(bottom = 96.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -360,7 +360,7 @@ fun NewTabSurface(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = 14.dp),
+                .padding(bottom = 12.dp),
         ) {
         Row(
             modifier = Modifier
@@ -375,7 +375,7 @@ fun NewTabSurface(
                 border = androidx.compose.foundation.BorderStroke(1.dp, hairline),
                 modifier = Modifier
                     .weight(1f)
-                    .height(56.dp)
+                    .height(48.dp)
                     .bouncyClickable(onClick = onCommandBarRequested),
             ) {
                 Row(
@@ -399,8 +399,8 @@ fun NewTabSurface(
             }
             Box(
                 modifier = Modifier
-                    .size(42.dp)
-                    .border(1.6.dp, onBackground, RoundedCornerShape(9.dp))
+                    .size(36.dp)
+                    .border(1.6.dp, onBackground, RoundedCornerShape(8.dp))
                     .bouncyClickable(onClick = onTabSwitcherClick),
                 contentAlignment = Alignment.Center,
             ) {

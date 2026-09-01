@@ -1840,8 +1840,8 @@ private fun BottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .height(72.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -1859,7 +1859,7 @@ private fun BottomBar(
                 shadowElevation = 0.dp,
                 modifier = Modifier
                     .weight(1f)
-                    .height(38.dp),
+                    .height(48.dp),
             ) {
                 Row(
                     modifier = Modifier
