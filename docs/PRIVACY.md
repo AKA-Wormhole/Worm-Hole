@@ -1,18 +1,18 @@
-# WormHole Privacy Policy
+# HoloCore Privacy Policy
 
 Last updated: August 26, 2026
 
-This policy explains what WormHole does and does not do with your data. WormHole is built around a simple rule: your browsing activity stays on your device unless a feature you turned on requires sending something specific off-device.
+This policy explains what HoloCore does and does not do with your data. HoloCore is built around a simple rule: your browsing activity stays on your device unless a feature you turned on requires sending something specific off-device.
 
 ## Information stored on your device
 
-Browsing history, bookmarks, downloads, saved tabs, and passkeys are stored in a local database on your device. WormHole does not upload this data to WormHole servers. It may be included in Android's device-to-device transfer when you move to a new phone, but it is excluded from automatic cloud backup.
+Browsing history, bookmarks, downloads, saved tabs, and passkeys are stored in a local database on your device. HoloCore does not upload this data to HoloCore servers. It may be included in Android's device-to-device transfer when you move to a new phone, but it is excluded from automatic cloud backup.
 
-Incognito tabs do not write to history. Cookies and site data from an Incognito session are deleted when every Incognito tab is closed, or the next time WormHole starts.
+Incognito tabs do not write to history. Cookies and site data from an Incognito session are deleted when every Incognito tab is closed, or the next time HoloCore starts.
 
 ## Permissions
 
-Camera, microphone, and location are requested only when a website asks for them, and only after you approve that request. WormHole does not access these sensors on its own.
+Camera, microphone, and location are requested only when a website asks for them, and only after you approve that request. HoloCore does not access these sensors on its own.
 
 Notifications are used for download progress.
 
@@ -22,7 +22,7 @@ Pages you visit are fetched directly from those websites. Search queries go to t
 
 ## Advertising ID
 
-WormHole does not use the Google advertising ID and does not show third-party ads.
+HoloCore does not use the Google advertising ID and does not show third-party ads.
 
 ## Contact
 

@@ -1,6 +1,6 @@
 (function () {
-  if (window.__wormholeWebAuthnInstalled) return;
-  window.__wormholeWebAuthnInstalled = true;
+  if (window.__holocoreWebAuthnInstalled) return;
+  window.__holocoreWebAuthnInstalled = true;
 
   var nativeCredentials = navigator.credentials;
   var pending = {};
@@ -24,8 +24,8 @@
 
   function encodeBuffers(value) {
     if (value == null) return value;
-    if (value instanceof ArrayBuffer) return { __wormholeBuffer: true, b64: toBase64Url(value) };
-    if (ArrayBuffer.isView(value)) return { __wormholeBuffer: true, b64: toBase64Url(value.buffer) };
+    if (value instanceof ArrayBuffer) return { __holocoreBuffer: true, b64: toBase64Url(value) };
+    if (ArrayBuffer.isView(value)) return { __holocoreBuffer: true, b64: toBase64Url(value.buffer) };
     if (Array.isArray(value)) return value.map(encodeBuffers);
     if (typeof value === "object") {
       var out = {};
@@ -39,7 +39,7 @@
 
   function decodeBuffers(value) {
     if (value == null) return value;
-    if (typeof value === "object" && value.__wormholeBuffer === true) return fromBase64Url(value.b64);
+    if (typeof value === "object" && value.__holocoreBuffer === true) return fromBase64Url(value.b64);
     if (Array.isArray(value)) return value.map(decodeBuffers);
     if (typeof value === "object") {
       var out = {};
@@ -51,7 +51,7 @@
     return value;
   }
 
-  window.__wormholeWebAuthnResolve = function (requestId, resultJson) {
+  window.__holocoreWebAuthnResolve = function (requestId, resultJson) {
     var entry = pending[requestId];
     if (!entry) return;
     delete pending[requestId];
@@ -63,7 +63,7 @@
     }
   };
 
-  window.__wormholeWebAuthnReject = function (requestId, name, message) {
+  window.__holocoreWebAuthnReject = function (requestId, name, message) {
     var entry = pending[requestId];
     if (!entry) return;
     delete pending[requestId];
@@ -79,7 +79,7 @@
 
   function bridgeCall(method, publicKey, signal) {
     return new Promise(function (resolve, reject) {
-      if (typeof WormHoleWebAuthn === "undefined") {
+      if (typeof HoloCoreWebAuthn === "undefined") {
         reject(new DOMException("WebAuthn is not available", "NotSupportedError"));
         return;
       }
@@ -95,7 +95,7 @@
         signal.addEventListener("abort", function () {
           if (!pending[requestId]) return;
           delete pending[requestId];
-          WormHoleWebAuthn.cancel(requestId);
+          HoloCoreWebAuthn.cancel(requestId);
           reject(new DOMException("The operation was aborted", "AbortError"));
         });
       }
@@ -103,9 +103,9 @@
       var payload = JSON.stringify(encodeBuffers(publicKey));
       try {
         if (method === "create") {
-          WormHoleWebAuthn.create(requestId, payload, window.location.origin);
+          HoloCoreWebAuthn.create(requestId, payload, window.location.origin);
         } else {
-          WormHoleWebAuthn.get(requestId, payload, window.location.origin);
+          HoloCoreWebAuthn.get(requestId, payload, window.location.origin);
         }
       } catch (e) {
         delete pending[requestId];

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="wormhole_launch_background">#141414</color>
-    <color name="wormhole_status_bar">#2C2C2C</color>
-    <color name="wormhole_native_accent">#FFFFFF</color>
+    <color name="holocore_launch_background">#141414</color>
+    <color name="holocore_status_bar">#2C2C2C</color>
+    <color name="holocore_native_accent">#FFFFFF</color>
 </resources>

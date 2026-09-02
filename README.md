@@ -1,6 +1,6 @@
-# WormHole
+# HoloCore
 
-A Gecko-based Android browser. Package `com.wormhole.browser`.
+A Gecko-based Android browser. Package `holocore.browser.app`.
 
 - Engine: Mozilla GeckoView
 - Min SDK 26 · Target / compile SDK 36
@@ -8,7 +8,7 @@ A Gecko-based Android browser. Package `com.wormhole.browser`.
 
 ## What it is
 
-WormHole is an installable browser: tabs, Spaces, downloads, bookmarks, history, find-in-page, desktop site, passkeys, optional extensions, and an optional Gemini assistant that uses a key you paste in Settings.
+HoloCore is an installable browser: tabs, Spaces, downloads, bookmarks, history, find-in-page, desktop site, passkeys, optional extensions, and an optional Gemini assistant that uses a key you paste in Settings.
 
 It is not a custom search engine and not a WebView wrapper. Pages render in Gecko.
 

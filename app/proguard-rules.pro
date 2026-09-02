@@ -1,7 +1,7 @@
--keepclassmembers class com.wormhole.browser.core.webview.WebViewFactory$BlobDownloadBridge {
+-keepclassmembers class holocore.browser.app.core.webview.WebViewFactory$BlobDownloadBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
--keepclassmembers class com.wormhole.browser.core.webview.WebAuthnBridge {
+-keepclassmembers class holocore.browser.app.core.webview.WebAuthnBridge {
     @android.webkit.JavascriptInterface <methods>;
 }
 -keep,allowobfuscation @interface android.webkit.JavascriptInterface
@@ -22,16 +22,16 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 -keepclasseswithmembers class *
--keep,includedescriptorclasses class com.wormhole.browser.**$$serializer { *; }
--keepclassmembers class com.wormhole.browser.** {
+-keep,includedescriptorclasses class holocore.browser.app.**$$serializer { *; }
+-keepclassmembers class holocore.browser.app.** {
     *** Companion;
 }
--keepclasseswithmembers class com.wormhole.browser.** {
+-keepclasseswithmembers class holocore.browser.app.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 
--keep @androidx.room.Entity class com.wormhole.browser.** { *; }
--keep @androidx.room.Dao class com.wormhole.browser.**
+-keep @androidx.room.Entity class holocore.browser.app.** { *; }
+-keep @androidx.room.Dao class holocore.browser.app.**
 
 -dontwarn okhttp3.**
 -dontwarn okio.**

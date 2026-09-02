@@ -1,15 +1,15 @@
 # Play Store listing checklist
 
-WormHole can be submitted as a production browser after the items below are completed in Play Console. Code-side blockers for a typical browser listing are addressed in the app (target SDK 36, optional hardware features, no advertising ID, in-app Privacy Policy and Terms, default-browser intent filters).
+HoloCore can be submitted as a production browser after the items below are completed in Play Console. Code-side blockers for a typical browser listing are addressed in the app (target SDK 36, optional hardware features, no advertising ID, in-app Privacy Policy and Terms, default-browser intent filters).
 
 ## Required Play Console fields
 
-- **Privacy policy URL** (public): https://github.com/AKA-Wormhole/Worm-Hole/blob/main/docs/PRIVACY.md
+- **Privacy policy URL** (public): https://github.com/AKA-Holocore/Worm-Hole/blob/main/docs/PRIVACY.md
 - **App category**: Productivity or Tools (Browser)
 - **Content rating**: IARC questionnaire. A general web browser is usually rated for teens/adults because the open web can include mature content. Do not declare “designed for children.”
 - **Target audience**: 18+ recommended for a general-purpose browser.
 - **Data safety form**
-  - Collected: none by WormHole itself
+  - Collected: none by HoloCore itself
   - Processed on device: browsing history, bookmarks, files the user downloads
   - Shared with third parties only when the user uses search or the optional AI assistant
   - Advertising ID: no

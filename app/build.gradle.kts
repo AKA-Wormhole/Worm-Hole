@@ -11,11 +11,11 @@ plugins {
 val isAppBundle = gradle.startParameter.taskNames.any { it.contains("bundle", ignoreCase = true) }
 
 android {
-    namespace = "com.wormhole.browser"
+    namespace = "holocore.browser.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.wormhole.browser"
+        applicationId = "holocore.browser.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 21

@@ -1,4 +1,4 @@
-# WormHole — signed release APK
+# HoloCore — signed release APK
 #
 # Required repository secrets:
 #   KEYSTORE_BASE64      base64 of the .jks / .keystore file
@@ -111,7 +111,7 @@ jobs:
           VERSION_CODE=$(grep -E 'versionCode\s*=' app/build.gradle.kts | head -1 | sed -E 's/[^0-9]//g')
           OUT_DIR="$GITHUB_WORKSPACE/dist"
           mkdir -p "$OUT_DIR"
-          OUT_APK="$OUT_DIR/WormHole-${VERSION_NAME}-${VERSION_CODE}.apk"
+          OUT_APK="$OUT_DIR/HoloCore-${VERSION_NAME}-${VERSION_CODE}.apk"
           cp "$APK" "$OUT_APK"
           echo "apk=$OUT_APK" >> "$GITHUB_OUTPUT"
           ls -lh "$OUT_APK"
@@ -121,7 +121,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: WormHole-apk
+          name: HoloCore-apk
           path: |
             dist/*.apk
             dist/mapping-*.txt

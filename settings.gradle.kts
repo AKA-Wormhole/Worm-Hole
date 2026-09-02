@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WormHole"
+rootProject.name = "HoloCore"
 include(":app")

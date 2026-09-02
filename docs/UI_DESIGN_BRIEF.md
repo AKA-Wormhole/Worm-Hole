@@ -1,6 +1,6 @@
-# WormHole — UI Design Brief
+# HoloCore — UI Design Brief
 
-This is the design target for WormHole's interface: an Arc-inspired Android
+This is the design target for HoloCore's interface: an Arc-inspired Android
 browser shell. Written as a standalone spec so implementation (Stage 3
 onward) has a fixed reference instead of ad hoc screen-by-screen design.
 
@@ -50,7 +50,7 @@ and **generous rounded geometry** (nothing sharp-cornered).
 - While active: background dims/blurs behind it, keyboard opens
   automatically, recent history + suggestions appear below as a list
   that fades/slides in.
-- Typing a non-URL triggers WormHole's search flow (Stage 4+); typing a URL
+- Typing a non-URL triggers HoloCore's search flow (Stage 4+); typing a URL
   navigates directly.
 - Dismiss by tapping outside, pressing back, or submitting — each with
   its own settle animation, not an instant cut.
@@ -58,7 +58,7 @@ and **generous rounded geometry** (nothing sharp-cornered).
 ### 2.3 Content area
 - Fills the remaining space right of the sidebar (or full width when
   sidebar is collapsed).
-- Holds the active tab's WebView (Stage 2's `WormHoleWebViewHost`) or, on a
+- Holds the active tab's WebView (Stage 2's `HoloCoreWebViewHost`) or, on a
   blank tab, the **New Tab surface**:
   - Space's gradient wallpaper, softly blurred, animated with slow
     ambient drift (subtle, not distracting)
@@ -112,7 +112,7 @@ introduced in Stage 3+ without a reason:
 | `snappy` (low bounce, high stiffness) | Frequent micro-interactions: button press, toggle, tab close, tab reorder drag-release |
 | `settled` (no bounce) | Precision elements: text field focus ring, progress indicator, find-in-page match count |
 
-Press feedback: every tappable element scales to `WormHoleMotion.PRESS_SCALE`
+Press feedback: every tappable element scales to `HoloCoreMotion.PRESS_SCALE`
 (0.94f) on press-down, using `snappy` to release — this is the "squish"
 half of squish-and-bounce and should be applied consistently via a
 shared `Modifier` extension rather than reimplemented per component.
@@ -133,8 +133,8 @@ continuous/ambient motion (e.g. the new-tab wallpaper drift).
 - Never introduce a new color outside this palette without adding it to
   `Color.kt` first — no inline hex values in composables.
 - Dark mode is a first-class target, not an afterthought: every new
-  component must be checked against both `WormHoleDarkScheme` and
-  `WormHoleLightScheme`.
+  component must be checked against both `HoloCoreDarkScheme` and
+  `HoloCoreLightScheme`.
 
 ---
 
@@ -152,7 +152,7 @@ continuous/ambient motion (e.g. the new-tab wallpaper drift).
 ## 6. Component inventory (what Stage 3 needs to build)
 
 In rough build order:
-1. `WormHoleSidebar` — collapsible container, Space switcher row, tab list
+1. `HoloCoreSidebar` — collapsible container, Space switcher row, tab list
 2. `SpaceSwitcher` — horizontal Space avatar row with add-Space action
 3. `TabListRow` — replaces Stage 2's plain `TabChip`; drag-reorderable
 4. `CommandBar` — the summonable pill; owns its own open/closed state
@@ -191,12 +191,12 @@ changes to Stage 3+ UI work (e.g. "adjust the CommandBar per section
 Treat it as the spec Stage 3 is built against — if an implementation
 detail conflicts with this brief, the brief wins unless we explicitly
 decide to amend it (and if we do, amend this file too, so it stays the
-one source of truth for what "Arc-styled" means in WormHole).
+one source of truth for what "Arc-styled" means in HoloCore).
 
 
 ## 9. Comet-inspired mobile interaction layer
 
-WormHole should follow the modern AI-browser interaction model without copying proprietary artwork, exact assets, or pixel-identical layouts. The target is the same product-level behavior: browsing remains primary, while AI is always one tap away and can work alongside the current page.
+HoloCore should follow the modern AI-browser interaction model without copying proprietary artwork, exact assets, or pixel-identical layouts. The target is the same product-level behavior: browsing remains primary, while AI is always one tap away and can work alongside the current page.
 
 - Keep the floating bottom browser chrome as the main navigation/search surface.
 - Add a dedicated Assistant action beside the search surface so AI is not hidden behind a generic overflow menu.
@@ -207,14 +207,14 @@ WormHole should follow the modern AI-browser interaction model without copying p
 
 ## 10. Liquid glass correctness
 
-The glass material must never blur its own children. `Modifier.blur()` must not be applied to a modifier chain that contains text, icons, buttons, or other foreground content. WormHole's current glass implementation therefore uses translucent layered fills, subtle gradients, a rim, and a background-only highlight.
+The glass material must never blur its own children. `Modifier.blur()` must not be applied to a modifier chain that contains text, icons, buttons, or other foreground content. HoloCore's current glass implementation therefore uses translucent layered fills, subtle gradients, a rim, and a background-only highlight.
 
 If true backdrop blur is added later, it must be implemented as a separate behind-content rendering layer so the foreground remains pixel-sharp.
 
 
 ## 2026-08-10 browser polish pass
 
-- The home surface uses a compact AI-browser layout with a prominent Ask WormHole/search entry and actionable suggestion cards.
+- The home surface uses a compact AI-browser layout with a prominent Ask HoloCore/search entry and actionable suggestion cards.
 - The tab switcher uses a two-column visual grid, Tabs/Incognito segmentation, history access, and a bottom Select/+ /Done control pattern.
 - Settings is available from the browser three-dot menu.
 - Liquid Glass is content-safe: no blur is applied to a composable subtree containing text or icons.
