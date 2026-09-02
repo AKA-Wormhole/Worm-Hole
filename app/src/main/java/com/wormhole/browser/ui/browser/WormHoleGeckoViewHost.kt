@@ -1,8 +1,12 @@
 package com.wormhole.browser.ui.browser
 
+import android.app.AlertDialog
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ProgressBar
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -112,6 +116,7 @@ fun WormHoleGeckoViewHost(
                     sessionPool.markCommitted(tab.id, url)
                     latestCallbacks.onPageFinished(tab.id, url)
                 }
+                PullRefresh.finish(tab.id)
             }
 
             override fun onProgressChange(session: GeckoSession, progress: Int) {
@@ -305,28 +310,26 @@ fun WormHoleGeckoViewHost(
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.AlertPrompt,
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
-                // An empty PromptDelegate silently swallows window.alert() with no
-                // UI at all, which looks like the page is unresponsive. Dismissing
-                // immediately isn't ideal either, but it at least unblocks content
-                // script execution instead of leaving the alert's promise hanging.
-                return GeckoResult.fromValue(prompt.dismiss())
+                return showJsAlert(context, prompt.title, prompt.message) { prompt.dismiss() }
             }
 
             override fun onButtonPrompt(
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.ButtonPrompt,
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
-                // window.confirm(): default to "cancel" (false) rather than hanging,
-                // matching the safest assumption when there's no UI to ask the user.
-                return GeckoResult.fromValue(prompt.dismiss())
+                return showJsConfirm(context, prompt.title, prompt.message) { ok ->
+                    if (ok) prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.POSITIVE)
+                    else prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.NEGATIVE)
+                }
             }
 
             override fun onTextPrompt(
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.TextPrompt,
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
-                // window.prompt(): dismiss with no value rather than hanging.
-                return GeckoResult.fromValue(prompt.dismiss())
+                return showJsPrompt(context, prompt.title, prompt.message, prompt.defaultValue) { value ->
+                    if (value == null) prompt.dismiss() else prompt.confirm(value)
+                }
             }
         }
 
@@ -402,6 +405,7 @@ fun WormHoleGeckoViewHost(
         scrollTracker = GeckoScrollTracker(
             session = session,
             onScroll = { delta, y, scrollable ->
+                PullRefresh.scrollY = y
                 latestOnScroll(delta, y, scrollable)
             },
             onScrollSettled = { latestOnScrollSettled() },
@@ -457,6 +461,11 @@ fun WormHoleGeckoViewHost(
                         FrameLayout.LayoutParams.MATCH_PARENT,
                         FrameLayout.LayoutParams.MATCH_PARENT,
                     )
+                    onVerticalDrag = { dy ->
+                        PullRefresh.onDrag(tab.id, dy) {
+                            runCatching { session.reload() }
+                        }
+                    }
                     isFocusable = true
                     isFocusableInTouchMode = true
                     importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_YES
@@ -476,6 +485,7 @@ fun WormHoleGeckoViewHost(
                     })
                 }
                 addView(geckoView)
+                addView(PullRefresh.spinner(ctx, tab.id))
                 tag = GeckoHostTag(geckoView)
             }
         },
@@ -521,3 +531,108 @@ private class GeckoHostTag(
     val geckoView: GeckoView,
     val chrome: GeckoToolbarChromeState = GeckoToolbarChromeState(),
 )
+
+private fun showJsAlert(
+    context: android.content.Context,
+    title: String?,
+    message: String?,
+    dismiss: () -> GeckoSession.PromptDelegate.PromptResponse,
+): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+    val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+    runCatching {
+        AlertDialog.Builder(context)
+            .setTitle(title?.ifBlank { "Page says" } ?: "Page says")
+            .setMessage(message.orEmpty())
+            .setPositiveButton(android.R.string.ok) { _, _ -> result.complete(dismiss()) }
+            .setOnCancelListener { result.complete(dismiss()) }
+            .show()
+    }.onFailure { result.complete(dismiss()) }
+    return result
+}
+
+private fun showJsConfirm(
+    context: android.content.Context,
+    title: String?,
+    message: String?,
+    confirm: (Boolean) -> GeckoSession.PromptDelegate.PromptResponse,
+): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+    val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+    runCatching {
+        AlertDialog.Builder(context)
+            .setTitle(title?.ifBlank { "Page says" } ?: "Page says")
+            .setMessage(message.orEmpty())
+            .setPositiveButton(android.R.string.ok) { _, _ -> result.complete(confirm(true)) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> result.complete(confirm(false)) }
+            .setOnCancelListener { result.complete(confirm(false)) }
+            .show()
+    }.onFailure { result.complete(confirm(false)) }
+    return result
+}
+
+private fun showJsPrompt(
+    context: android.content.Context,
+    title: String?,
+    message: String?,
+    defaultValue: String?,
+    confirm: (String?) -> GeckoSession.PromptDelegate.PromptResponse,
+): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+    val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+    runCatching {
+        val input = EditText(context).apply { setText(defaultValue.orEmpty()) }
+        AlertDialog.Builder(context)
+            .setTitle(title?.ifBlank { "Page says" } ?: "Page says")
+            .setMessage(message.orEmpty())
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ -> result.complete(confirm(input.text?.toString().orEmpty())) }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> result.complete(confirm(null)) }
+            .setOnCancelListener { result.complete(confirm(null)) }
+            .show()
+    }.onFailure { result.complete(confirm(null)) }
+    return result
+}
+
+/** Pull-down at the top of a page reloads it, like Chrome / Firefox. */
+private object PullRefresh {
+    @Volatile var scrollY: Int = 0
+    private var pulled = 0
+    private var refreshingTab: String? = null
+    private val bars = java.util.concurrent.ConcurrentHashMap<String, ProgressBar>()
+
+    fun spinner(context: android.content.Context, tabId: String): ProgressBar {
+        val bar = ProgressBar(context).apply {
+            isIndeterminate = true
+            visibility = View.GONE
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL,
+            ).apply { topMargin = (12 * context.resources.displayMetrics.density).toInt() }
+        }
+        bars[tabId] = bar
+        return bar
+    }
+
+    fun onDrag(tabId: String, dy: Int, reload: () -> Unit) {
+        if (refreshingTab != null) return
+        // NestedGeckoView dy is lastY - event.y: finger down => negative.
+        if (scrollY > 8 || dy >= 0) {
+            pulled = 0
+            return
+        }
+        pulled += -dy
+        if (pulled > 140) {
+            pulled = 0
+            refreshingTab = tabId
+            bars[tabId]?.visibility = View.VISIBLE
+            reload()
+        }
+    }
+
+    fun finish(tabId: String) {
+        if (refreshingTab == tabId || refreshingTab == null) {
+            bars[tabId]?.visibility = View.GONE
+            refreshingTab = null
+            pulled = 0
+        }
+    }
+}

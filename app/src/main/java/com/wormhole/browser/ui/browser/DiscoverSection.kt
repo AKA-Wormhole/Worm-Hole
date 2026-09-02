@@ -201,6 +201,7 @@ internal fun DiscoverSection(
             onAction = {
                 scope.launch {
                     loading = true
+                    stories = emptyList()
                     stories = DiscoverClient.load(force = true)
                     loading = false
                 }
@@ -221,7 +222,7 @@ internal fun DiscoverSection(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(end = 4.dp),
                 ) {
-                    items(stories.take(5), key = { it.url }) { story ->
+                    items(stories.take(5), key = { it.url + it.title }) { story ->
                         DiscoverHomeCard(
                             story = story,
                             saved = story.url in bookmarkedUrls,

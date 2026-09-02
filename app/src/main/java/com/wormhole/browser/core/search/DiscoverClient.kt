@@ -31,6 +31,8 @@ object DiscoverClient {
 
     @Volatile
     private var cache: Pair<List<Story>, Long>? = null
+    @Volatile
+    private var cursor: Int = 0
     private val mutex = Mutex()
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -40,26 +42,47 @@ object DiscoverClient {
 
     suspend fun load(force: Boolean = false): List<Story> = mutex.withLock {
         val cached = cache
-        if (!force && cached != null && System.currentTimeMillis() - cached.second < CACHE_MS) {
-            return cached.first
+        val pool = if (!force && cached != null && System.currentTimeMillis() - cached.second < CACHE_MS && cached.first.isNotEmpty()) {
+            cached.first
+        } else {
+            val fresh = withContext(Dispatchers.IO) { fetchBest() }
+            if (fresh.isNotEmpty()) {
+                cache = fresh to System.currentTimeMillis()
+                if (force) cursor = 0
+                fresh
+            } else {
+                cached?.first.orEmpty()
+            }
         }
-        val stories = withContext(Dispatchers.IO) { fetchBest() }
-        cache = stories to System.currentTimeMillis()
-        stories
+        if (pool.isEmpty()) return emptyList()
+        if (force) cursor += PAGE
+        val start = ((cursor % pool.size) + pool.size) % pool.size
+        val page = ArrayList<Story>(PAGE)
+        var i = 0
+        while (page.size < minOf(PAGE, pool.size) && i < pool.size) {
+            page += pool[(start + i) % pool.size]
+            i++
+        }
+        page
     }
 
     private suspend fun fetchBest(): List<Story> = coroutineScope {
-        val wiki = async { runCatching { fetchWikipediaFeatured() }.getOrDefault(emptyList()) }
-        val space = async { runCatching { fetchRss("https://www.space.com/feeds/all", "space.com", "Science") }.getOrDefault(emptyList()) }
-        val wired = async { runCatching { fetchRss("https://www.wired.com/feed/rss", "wired.com", "Tech") }.getOrDefault(emptyList()) }
-        val planet = async { runCatching { fetchRss("https://www.lonelyplanet.com/news/feed", "lonelyplanet.com", "Travel") }.getOrDefault(emptyList()) }
-        val news = async { runCatching { fetchGoogleNews() }.getOrDefault(emptyList()) }
-        val pooled = (wiki.await() + space.await() + wired.await() + planet.await() + news.await())
+        val feeds = listOf(
+            async { runCatching { fetchWikipediaFeatured() }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://www.space.com/feeds/all", "space.com", "Science") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://www.wired.com/feed/rss", "wired.com", "Tech") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://www.lonelyplanet.com/news/feed", "lonelyplanet.com", "Travel") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://www.nasa.gov/news-release/feed/", "nasa.gov", "Science") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", "bbc.co.uk", "Science") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchRss("https://feeds.arstechnica.com/arstechnica/index", "arstechnica.com", "Tech") }.getOrDefault(emptyList()) },
+            async { runCatching { fetchGoogleNews() }.getOrDefault(emptyList()) },
+        )
+        val pooled = feeds.flatMap { it.await() }
             .filter { it.title.length >= 12 && it.url.startsWith("http") }
             .filterNot { looksUnsafe(it.title) }
             .distinctBy { it.url.lowercase() }
             .distinctBy { it.title.lowercase().take(40) }
-        rank(pooled).take(8)
+        rank(pooled)
     }
 
     private fun rank(stories: List<Story>): List<Story> {
@@ -79,12 +102,12 @@ object DiscoverClient {
             chosen += story
             usedCategories += story.category
             usedSources += story.source
-            if (chosen.size >= 8) break
+            if (chosen.size >= 24) break
         }
-        if (chosen.size < 3) {
+        if (chosen.size < 8) {
             for (story in ordered) {
                 if (chosen.none { it.url == story.url }) chosen += story
-                if (chosen.size >= 6) break
+                if (chosen.size >= 24) break
             }
         }
         return chosen
@@ -292,7 +315,8 @@ object DiscoverClient {
     private val ENCLOSURE = Regex("<enclosure[^>]+url=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
     private val IMG_SRC = Regex("<img[^>]+src=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
     private val HREF = Regex("href=[\"'](https?://[^\"']+)[\"']", RegexOption.IGNORE_CASE)
-    private const val CACHE_MS = 30 * 60 * 1000L
+    private const val CACHE_MS = 5 * 60 * 1000L
+    private const val PAGE = 5
     private const val USER_AGENT =
         "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36"
 }
